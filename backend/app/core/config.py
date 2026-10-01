@@ -21,6 +21,13 @@ class Settings(BaseSettings):
     # JSON list in the environment, e.g. CORS_ORIGINS='["http://localhost:5173"]'
     cors_origins: list[str] = Field(default_factory=lambda: ["http://localhost:5173"])
 
+    # postgresql+asyncpg://user:password@host:5432/dbname
+    database_url: str = "postgresql+asyncpg://app:app@localhost:5432/jobs"
+    database_pool_size: int = 5
+    database_echo: bool = False
+    # Used only by the automated tests; never point this at real data.
+    test_database_url: str = "postgresql+asyncpg://app:app@localhost:5432/jobs_test"
+
 
 @lru_cache
 def get_settings() -> Settings:

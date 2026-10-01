@@ -1,21 +1,88 @@
+import asyncio
+from collections.abc import AsyncIterator, Iterator
+from pathlib import Path
+
 import pytest
+from alembic import command
+from alembic.config import Config
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
+from sqlalchemy import text
+from sqlalchemy.engine import make_url
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, create_async_engine
+from sqlalchemy.pool import NullPool
 
 from app.core.config import Settings
 from app.main import create_app
 
+BACKEND_DIR = Path(__file__).resolve().parents[1]
+TABLES = ("audit_logs", "tasks", "users")
 
-@pytest.fixture
+
+@pytest.fixture(scope="session")
 def settings() -> Settings:
-    return Settings(app_env="test", log_json=False, log_level="WARNING")
+    base = Settings()  # reads backend/.env
+    url = make_url(base.test_database_url)
+    # Safety: the suite wipes this database — never run it against real data.
+    if not (url.database or "").endswith("_test"):
+        pytest.exit(f"TEST_DATABASE_URL must point to a *_test database, got {url.database!r}")
+    return Settings(
+        app_env="test",
+        log_json=False,
+        log_level="WARNING",
+        database_url=base.test_database_url,
+        test_database_url=base.test_database_url,
+    )
+
+
+def alembic_config(database_url: str) -> Config:
+    config = Config(str(BACKEND_DIR / "alembic.ini"))
+    config.set_main_option("sqlalchemy.url", database_url)
+    config.attributes["configure_logger"] = False
+    return config
+
+
+async def _truncate(database_url: str) -> None:
+    engine = create_async_engine(database_url, poolclass=NullPool)
+    async with engine.begin() as conn:
+        await conn.execute(text(f"TRUNCATE {', '.join(TABLES)} RESTART IDENTITY CASCADE"))
+    await engine.dispose()
+
+
+@pytest.fixture(scope="session")
+def migrated_database(settings: Settings) -> str:
+    """Rebuild the test database from scratch through the migrations, once per test run."""
+    config = alembic_config(settings.database_url)
+    command.downgrade(config, "base")
+    command.upgrade(config, "head")
+    return settings.database_url
+
+
+@pytest.fixture(autouse=True)
+def clean_tables(migrated_database: str) -> Iterator[None]:
+    yield
+    asyncio.run(_truncate(migrated_database))
 
 
 @pytest.fixture
-def app(settings: Settings) -> FastAPI:
+def app(settings: Settings, migrated_database: str) -> FastAPI:
     return create_app(settings)
 
 
 @pytest.fixture
-def client(app: FastAPI) -> TestClient:
-    return TestClient(app, raise_server_exceptions=False)
+def client(app: FastAPI) -> Iterator[TestClient]:
+    with TestClient(app, raise_server_exceptions=False) as test_client:
+        yield test_client
+
+
+@pytest.fixture
+async def engine(migrated_database: str) -> AsyncIterator[AsyncEngine]:
+    test_engine = create_async_engine(migrated_database, poolclass=NullPool)
+    yield test_engine
+    await test_engine.dispose()
+
+
+@pytest.fixture
+async def session(engine: AsyncEngine) -> AsyncIterator[AsyncSession]:
+    async with AsyncSession(engine, expire_on_commit=False) as db_session:
+        yield db_session
