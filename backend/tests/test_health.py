@@ -1,7 +1,10 @@
 from fastapi.testclient import TestClient
 
+import app.models  # noqa: F401  (registers all tables)
 from app.core.config import Settings
+from app.db.base import Base
 from app.main import create_app
+from app.services.health import expected_migration_head
 
 
 def test_health_reports_api_and_database(client: TestClient) -> None:
@@ -16,10 +19,10 @@ def test_health_reports_api_and_database(client: TestClient) -> None:
 
     database = body["checks"]["database"]
     assert database["status"] == "ok"
-    assert database["details"]["revision"] == "0002"
-    assert database["details"]["head"] == "0002"
+    assert database["details"]["revision"] == expected_migration_head()
+    assert database["details"]["head"] == expected_migration_head()
     assert database["details"]["up_to_date"] is True
-    assert database["details"]["tables"] == 4
+    assert database["details"]["tables"] == len(Base.metadata.tables)
     assert database["details"]["latency_ms"] >= 0
 
 

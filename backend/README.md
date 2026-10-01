@@ -55,6 +55,22 @@ uv run uvicorn app.main:app --reload --port 8000
 - Pending accounts can sign in and call `/users/me`; feature routes (`ApprovedUser` dependency) answer `403 ACCOUNT_PENDING`. Rejected/deactivated accounts cannot sign in (`ACCOUNT_REJECTED`, `ACCOUNT_DEACTIVATED`).
 - Auth endpoints are rate limited per IP (in-process; Redis later).
 
+## Users & admin (Phase 5)
+
+| Endpoint | Who | Purpose |
+|---|---|---|
+| `PATCH /api/v1/users/me` | approved user | change your name |
+| `GET/PUT /api/v1/users/me/profile` | approved user | phone, location, headline, links, time zone |
+| `GET/PATCH /api/v1/users/me/settings` | approved user | thresholds, score weights (sum 100), sending limits, automation, AI budget |
+| `GET /api/v1/admin/users?status=&q=&page=&page_size=` | admin | accounts, pending first |
+| `GET /api/v1/admin/users/counts` | admin | number per status |
+| `POST /api/v1/admin/users/{id}/approve` · `/reject` · `/deactivate` · `/reactivate` | admin | account actions |
+| `PATCH /api/v1/admin/users/{id}/role` | admin | make / remove admin |
+
+Rules: admins cannot act on themselves; the last active admin cannot be removed; only pending accounts can be rejected; reject/deactivate revoke all sessions; every action is audited.
+
+**Ownership:** user-owned tables use `OwnedRepository(session, owner_id)` — every query is filtered by `user_id`, rows of other users behave as "not found". Every new user-owned endpoint needs a test in `tests/test_isolation.py`.
+
 ## Migrations (Alembic)
 
 | Command | Purpose |
