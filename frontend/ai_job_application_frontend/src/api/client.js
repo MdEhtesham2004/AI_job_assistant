@@ -1,4 +1,8 @@
+import { tokenStore } from '@/auth/tokenStore'
+
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '/api/v1'
+const REFRESH_PATH = '/auth/refresh'
+const RACE_RETRY_DELAY_MS = 300
 
 /** Normalized error for every failed API call (see Phase 1 §3.4 error format). */
 export class ApiError extends Error {
@@ -12,17 +16,15 @@ export class ApiError extends Error {
   }
 }
 
-/**
- * Single entry point for all backend calls. Components never call fetch directly.
- * Authentication headers and token refresh are added in Phase 4.
- */
-export async function apiRequest(path, { method = 'GET', body, headers = {}, signal } = {}) {
+async function send(path, { method = 'GET', body, headers = {}, signal } = {}) {
   const init = {
     method,
     headers: { Accept: 'application/json', ...headers },
     credentials: 'include',
     signal,
   }
+  const token = tokenStore.get()
+  if (token) init.headers.Authorization = `Bearer ${token}`
   if (body instanceof FormData) {
     init.body = body
   } else if (body !== undefined) {
@@ -55,6 +57,65 @@ export async function apiRequest(path, { method = 'GET', body, headers = {}, sig
     })
   }
   return data
+}
+
+let refreshInFlight = null
+
+async function refreshOnce() {
+  try {
+    return await send(REFRESH_PATH, { method: 'POST' })
+  } catch (error) {
+    // Another tab rotated the cookie a moment ago; the browser now holds the new one.
+    if (error instanceof ApiError && error.code === 'REFRESH_RACE') {
+      await new Promise((resolve) => setTimeout(resolve, RACE_RETRY_DELAY_MS))
+      return send(REFRESH_PATH, { method: 'POST' })
+    }
+    throw error
+  }
+}
+
+/**
+ * Exchange the refresh cookie for a new access token. Parallel callers share one request,
+ * so the cookie is rotated only once.
+ */
+export function refreshSession() {
+  if (!refreshInFlight) {
+    refreshInFlight = refreshOnce()
+      .then((session) => {
+        tokenStore.set(session.access_token)
+        return session
+      })
+      .finally(() => {
+        refreshInFlight = null
+      })
+  }
+  return refreshInFlight
+}
+
+/**
+ * Single entry point for all backend calls. Components never call fetch directly.
+ * On 401 it refreshes the session once and retries; if that fails the session ends.
+ */
+export async function apiRequest(path, options = {}) {
+  try {
+    return await send(path, options)
+  } catch (error) {
+    const canRetry =
+      error instanceof ApiError &&
+      error.status === 401 &&
+      !path.startsWith('/auth/') &&
+      !options.skipAuthRetry &&
+      tokenStore.get() !== null
+    if (!canRetry) throw error
+
+    try {
+      await refreshSession()
+    } catch {
+      tokenStore.endSession()
+      throw error
+    }
+    return send(path, options)
+  }
 }
 
 export const api = {
