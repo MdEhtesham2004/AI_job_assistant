@@ -16,10 +16,10 @@ def test_health_reports_api_and_database(client: TestClient) -> None:
 
     database = body["checks"]["database"]
     assert database["status"] == "ok"
-    assert database["details"]["revision"] == "0001"
-    assert database["details"]["head"] == "0001"
+    assert database["details"]["revision"] == "0002"
+    assert database["details"]["head"] == "0002"
     assert database["details"]["up_to_date"] is True
-    assert database["details"]["tables"] == 3
+    assert database["details"]["tables"] == 4
     assert database["details"]["latency_ms"] >= 0
 
 

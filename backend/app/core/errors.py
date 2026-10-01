@@ -32,6 +32,12 @@ class AppError(Exception):
         super().__init__(self.message)
 
 
+class AuthenticationError(AppError):
+    status_code = 401
+    code = "AUTH_REQUIRED"
+    message = "Authentication required."
+
+
 class NotFoundError(AppError):
     status_code = 404
     code = "NOT_FOUND"
@@ -106,7 +112,12 @@ def error_response(
 
 async def _app_error_handler(request: Request, exc: Exception) -> JSONResponse:
     assert isinstance(exc, AppError)
-    return error_response(request, exc.status_code, exc.code, exc.message, exc.details)
+    response = error_response(request, exc.status_code, exc.code, exc.message, exc.details)
+    if isinstance(exc, AuthenticationError):
+        response.headers["WWW-Authenticate"] = "Bearer"
+    if isinstance(exc, LimitExceededError) and "retry_after" in exc.details:
+        response.headers["Retry-After"] = str(exc.details["retry_after"])
+    return response
 
 
 async def _http_exception_handler(request: Request, exc: Exception) -> JSONResponse:
