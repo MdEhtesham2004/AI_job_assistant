@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest'
 
 import { makeAuth, makeUser, renderWithProviders } from '@/test/utils'
 
-import { GuestOnly, RequireApproved, RequireAuth } from './guards'
+import { GuestOnly, RequireAdmin, RequireApproved, RequireAuth } from './guards'
 
 function TestRoutes() {
   return (
@@ -82,6 +82,29 @@ describe('route guards', () => {
     renderWithProviders(<TestRoutes />, { route: '/login', auth: approved })
 
     expect(screen.getByText('home page')).toBeInTheDocument()
+  })
+
+  it('shows the 404 page to non-admins on admin pages', () => {
+    renderWithProviders(
+      <RequireAdmin>
+        <p>admin page</p>
+      </RequireAdmin>,
+      { auth: approved },
+    )
+
+    expect(screen.getByText('Page not found')).toBeInTheDocument()
+    expect(screen.queryByText('admin page')).not.toBeInTheDocument()
+  })
+
+  it('lets admins open admin pages', () => {
+    renderWithProviders(
+      <RequireAdmin>
+        <p>admin page</p>
+      </RequireAdmin>,
+      { auth: makeAuth({ user: makeUser({ role: 'admin' }) }) },
+    )
+
+    expect(screen.getByText('admin page')).toBeInTheDocument()
   })
 
   it('returns to the originally requested page after sign-in', () => {

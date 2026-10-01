@@ -2,6 +2,7 @@ import { Navigate, useLocation } from 'react-router'
 
 import { useAuth } from '@/auth/useAuth'
 import { FullPageSpinner } from '@/components/common/FullPageSpinner'
+import NotFoundPage from '@/pages/NotFoundPage'
 
 function homeFor(user) {
   return user?.approval_status === 'approved' ? '/' : '/awaiting-approval'
@@ -36,5 +37,12 @@ export function RequireAuth({ children }) {
 export function RequireApproved({ children }) {
   const { user } = useAuth()
   if (user?.approval_status !== 'approved') return <Navigate to="/awaiting-approval" replace />
+  return children
+}
+
+/** Admin pages: non-admins see the normal 404 page (Phase 1 §7.6). */
+export function RequireAdmin({ children }) {
+  const { user } = useAuth()
+  if (user?.role !== 'admin') return <NotFoundPage />
   return children
 }

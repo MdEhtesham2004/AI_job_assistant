@@ -2,7 +2,9 @@ import { BriefcaseBusiness, Menu, Moon, Sun, X } from 'lucide-react'
 import { useState } from 'react'
 import { NavLink, Outlet } from 'react-router'
 
+import { useAuth } from '@/auth/useAuth'
 import { Button } from '@/components/ui/button'
+import { useUserCounts } from '@/features/admin/hooks'
 import { cn } from '@/lib/utils'
 import { useTheme } from '@/theme/useTheme'
 
@@ -10,27 +12,51 @@ import { navigation } from './navigation'
 import { UserMenu } from './UserMenu'
 
 function SidebarNav({ onNavigate }) {
+  const { user } = useAuth()
+  const isAdmin = user?.role === 'admin'
+  const counts = useUserCounts({ enabled: isAdmin })
+  const badges = { pendingUsers: counts.data?.pending ?? 0 }
+
   return (
-    <nav className="flex flex-col gap-1 p-3" aria-label="Main">
-      {navigation.map(({ to, label, icon: Icon, end }) => (
-        <NavLink
-          key={to}
-          to={to}
-          end={end}
-          onClick={onNavigate}
-          className={({ isActive }) =>
-            cn(
-              'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors',
-              isActive
-                ? 'bg-primary/10 text-primary'
-                : 'text-muted-foreground hover:bg-accent hover:text-foreground',
-            )
-          }
-        >
-          <Icon className="size-4" aria-hidden="true" />
-          {label}
-        </NavLink>
-      ))}
+    <nav className="flex flex-col gap-4 p-3" aria-label="Main">
+      {navigation
+        .filter((section) => !section.adminOnly || isAdmin)
+        .map((section, index) => (
+          <div key={section.title ?? index} className="flex flex-col gap-1">
+            {section.title && (
+              <p className="px-3 pb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                {section.title}
+              </p>
+            )}
+            {section.items.map(({ to, label, icon: Icon, end, badge }) => (
+              <NavLink
+                key={to}
+                to={to}
+                end={end}
+                onClick={onNavigate}
+                className={({ isActive }) =>
+                  cn(
+                    'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors',
+                    isActive
+                      ? 'bg-primary/10 text-primary'
+                      : 'text-muted-foreground hover:bg-accent hover:text-foreground',
+                  )
+                }
+              >
+                <Icon className="size-4" aria-hidden="true" />
+                <span className="flex-1">{label}</span>
+                {badge && badges[badge] > 0 && (
+                  <span
+                    className="rounded-full bg-warning/20 px-2 text-xs font-semibold text-warning"
+                    aria-label={`${badges[badge]} pending`}
+                  >
+                    {badges[badge]}
+                  </span>
+                )}
+              </NavLink>
+            ))}
+          </div>
+        ))}
     </nav>
   )
 }
