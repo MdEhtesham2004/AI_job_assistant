@@ -3,58 +3,15 @@ import asyncio
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
-from sqlalchemy import text
-from sqlalchemy.ext.asyncio import create_async_engine
-from sqlalchemy.pool import NullPool
 
 from app.api.deps import ApprovedUser
 from app.core.config import Settings
 from app.core.security import create_access_token, hash_token
 from app.services.auth import AuthService, ClientInfo
+from tests.helpers import PASSWORD, bearer, db, login, register, set_status
 
-PASSWORD = "correct-horse-battery"
 NEW_PASSWORD = "another-strong-passphrase"
 COOKIE = "refresh_token"
-
-
-# ---------- helpers ----------
-
-
-def db(database_url: str, sql: str, **params: object) -> list[tuple]:
-    """Run one SQL statement against the test database from a sync test."""
-
-    async def run() -> list[tuple]:
-        engine = create_async_engine(database_url, poolclass=NullPool)
-        async with engine.begin() as conn:
-            result = await conn.execute(text(sql), params)
-            rows = list(result.fetchall()) if result.returns_rows else []
-        await engine.dispose()
-        return rows
-
-    return asyncio.run(run())
-
-
-def register(client: TestClient, email: str = "new@example.com", **extra: str):
-    body = {"email": email, "full_name": "New Person", "password": PASSWORD, **extra}
-    return client.post("/api/v1/auth/register", json=body)
-
-
-def login(client: TestClient, email: str = "new@example.com", password: str = PASSWORD):
-    return client.post("/api/v1/auth/login", json={"email": email, "password": password})
-
-
-def bearer(token: str) -> dict[str, str]:
-    return {"Authorization": f"Bearer {token}"}
-
-
-def set_status(url: str, email: str, approval: str = "approved", active: bool = True) -> None:
-    db(
-        url,
-        "UPDATE users SET approval_status = :s, is_active = :a WHERE email = :e",
-        s=approval,
-        a=active,
-        e=email,
-    )
 
 
 @pytest.fixture

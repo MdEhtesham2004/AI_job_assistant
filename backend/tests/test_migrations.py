@@ -11,7 +11,7 @@ from app.core.config import Settings
 from app.db.base import Base
 from tests.conftest import alembic_config
 
-EXPECTED_TABLES = {"users", "tasks", "audit_logs", "auth_refresh_tokens"}
+EXPECTED_TABLES = set(Base.metadata.tables)  # every model table must be created by migrations
 
 
 def _tables(database_url: str) -> set[str]:

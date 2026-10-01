@@ -12,11 +12,13 @@ from sqlalchemy.engine import make_url
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, create_async_engine
 from sqlalchemy.pool import NullPool
 
+import app.models  # noqa: F401  (registers all tables)
 from app.core.config import Settings
+from app.db.base import Base
 from app.main import create_app
 
 BACKEND_DIR = Path(__file__).resolve().parents[1]
-TABLES = ("auth_refresh_tokens", "audit_logs", "tasks", "users")
+TABLES = tuple(sorted(Base.metadata.tables))  # wiped after every test
 TEST_SECRET_KEY = "test-secret-key-for-automated-tests-only-0123456789"
 
 

@@ -178,11 +178,3 @@ async def reset_password(
     limiter.check(_client_key(client, "reset"), limit=10, window_seconds=300)
     await AuthService(db, settings).reset_password(body.token, body.new_password, client)
     return MessageResponse(message="Your password has been changed. Please sign in.")
-
-
-users_router = APIRouter(prefix="/users", tags=["users"])
-
-
-@users_router.get("/me", response_model=UserRead, summary="The signed-in user")
-async def read_me(user: CurrentUser) -> UserRead:
-    return UserRead.model_validate(user)
