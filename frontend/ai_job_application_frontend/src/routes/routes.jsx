@@ -1,15 +1,20 @@
 import { AppLayout } from '@/layouts/AppLayout'
 import { AuthLayout } from '@/layouts/AuthLayout'
+import AdminUsersPage from '@/pages/admin/AdminUsersPage'
 import AwaitingApprovalPage from '@/pages/AwaitingApprovalPage'
 import ChangePasswordPage from '@/pages/ChangePasswordPage'
 import HomePage from '@/pages/HomePage'
 import LoginPage from '@/pages/LoginPage'
 import NotFoundPage from '@/pages/NotFoundPage'
+import ProfilePage from '@/pages/ProfilePage'
 import RegisterPage from '@/pages/RegisterPage'
 import RouteErrorPage from '@/pages/RouteErrorPage'
+import SettingsPage from '@/pages/SettingsPage'
 import SystemStatusPage from '@/pages/SystemStatusPage'
 
-import { GuestOnly, RequireApproved, RequireAuth } from './guards'
+import { GuestOnly, RequireAdmin, RequireApproved, RequireAuth } from './guards'
+
+const admin = (page) => <RequireAdmin>{page}</RequireAdmin>
 
 /** Route table — grows per phase (see Phase 1 §8 page map). */
 export const routes = [
@@ -45,8 +50,11 @@ export const routes = [
         ),
         children: [
           { index: true, element: <HomePage /> },
-          { path: 'system', element: <SystemStatusPage /> },
+          { path: 'profile', element: <ProfilePage /> },
+          { path: 'settings', element: <SettingsPage /> },
           { path: 'account/password', element: <ChangePasswordPage /> },
+          { path: 'admin/users', element: admin(<AdminUsersPage />) },
+          { path: 'admin/system', element: admin(<SystemStatusPage />) },
           { path: '*', element: <NotFoundPage /> },
         ],
       },

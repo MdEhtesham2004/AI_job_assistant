@@ -16,6 +16,25 @@ export function errorResponse(status, code, message = 'Error', details = {}) {
   return jsonResponse({ error: { code, message, details, request_id: 'req-test' } }, { status })
 }
 
+/**
+ * Stub fetch with a route table: { 'GET /admin/users': body | (url, init) => Response }.
+ * Paths are matched without the /api/v1 prefix and without the query string.
+ * Returns the fetch mock so tests can inspect calls.
+ */
+export function mockApi(routes) {
+  const fetchMock = vi.fn(async (url, init = {}) => {
+    const path = String(url)
+      .replace(/^\/api\/v1/, '')
+      .split('?')[0]
+    const key = `${init.method ?? 'GET'} ${path}`
+    const handler = routes[key]
+    if (handler === undefined) return errorResponse(404, 'NOT_FOUND', `No mock for ${key}`)
+    return typeof handler === 'function' ? handler(url, init) : jsonResponse(handler)
+  })
+  vi.stubGlobal('fetch', fetchMock)
+  return fetchMock
+}
+
 export function makeUser(overrides = {}) {
   return {
     id: '11111111-1111-1111-1111-111111111111',

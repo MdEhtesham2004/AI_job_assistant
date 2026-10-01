@@ -1,9 +1,11 @@
-import { Activity } from 'lucide-react'
+import { Settings, UserRound, Users } from 'lucide-react'
 import { Link } from 'react-router'
 
 import { useAuth } from '@/auth/useAuth'
 import { PageHeader } from '@/components/common/PageHeader'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+
+const linkClass = 'inline-flex items-center gap-2 text-sm font-medium text-primary hover:underline'
 
 export default function HomePage() {
   const { user } = useAuth()
@@ -17,20 +19,27 @@ export default function HomePage() {
       />
       <Card className="max-w-xl">
         <CardHeader>
-          <CardTitle>You are signed in</CardTitle>
+          <CardTitle>Get started</CardTitle>
           <CardDescription>
-            Accounts and sign-in are ready. Profiles and user management arrive next, then resumes
-            and jobs.
+            Complete your profile and check your settings. Resumes and jobs arrive in the next
+            phases.
           </CardDescription>
         </CardHeader>
-        <CardContent>
-          <Link
-            to="/system"
-            className="inline-flex items-center gap-2 text-sm font-medium text-primary hover:underline"
-          >
-            <Activity className="size-4" aria-hidden="true" />
-            Open System Status
+        <CardContent className="flex flex-col gap-2">
+          <Link to="/profile" className={linkClass}>
+            <UserRound className="size-4" aria-hidden="true" />
+            Complete your profile
           </Link>
+          <Link to="/settings" className={linkClass}>
+            <Settings className="size-4" aria-hidden="true" />
+            Review your settings
+          </Link>
+          {user?.role === 'admin' && (
+            <Link to="/admin/users" className={linkClass}>
+              <Users className="size-4" aria-hidden="true" />
+              Approve pending sign-ups
+            </Link>
+          )}
         </CardContent>
       </Card>
     </>
