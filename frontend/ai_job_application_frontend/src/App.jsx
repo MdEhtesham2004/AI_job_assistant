@@ -5,6 +5,7 @@ import { RouterProvider } from 'react-router/dom'
 import { Toaster } from 'sonner'
 
 import { createQueryClient } from '@/api/queryClient'
+import { AuthProvider } from '@/auth/AuthProvider'
 import { routes } from '@/routes/routes'
 import { ThemeProvider } from '@/theme/ThemeProvider'
 import { useTheme } from '@/theme/useTheme'
@@ -22,7 +23,9 @@ export default function App() {
   return (
     <ThemeProvider>
       <QueryClientProvider client={queryClient}>
-        <RouterProvider router={router} />
+        <AuthProvider>
+          <RouterProvider router={router} />
+        </AuthProvider>
         <ThemedToaster />
       </QueryClientProvider>
     </ThemeProvider>

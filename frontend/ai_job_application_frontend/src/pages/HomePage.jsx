@@ -1,22 +1,26 @@
 import { Activity } from 'lucide-react'
 import { Link } from 'react-router'
 
+import { useAuth } from '@/auth/useAuth'
 import { PageHeader } from '@/components/common/PageHeader'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 
 export default function HomePage() {
+  const { user } = useAuth()
+  const firstName = user?.full_name?.split(' ')[0]
+
   return (
     <>
       <PageHeader
-        title="Welcome"
+        title={firstName ? `Welcome, ${firstName}` : 'Welcome'}
         description="AI Job Application Platform — features are added phase by phase."
       />
       <Card className="max-w-xl">
         <CardHeader>
-          <CardTitle>Phase 2 — Project structure</CardTitle>
+          <CardTitle>You are signed in</CardTitle>
           <CardDescription>
-            The backend and frontend skeletons are running. Sign-in, resumes and jobs arrive in the
-            next phases.
+            Accounts and sign-in are ready. Profiles and user management arrive next, then resumes
+            and jobs.
           </CardDescription>
         </CardHeader>
         <CardContent>

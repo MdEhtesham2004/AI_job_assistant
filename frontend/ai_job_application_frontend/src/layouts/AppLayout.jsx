@@ -7,6 +7,7 @@ import { cn } from '@/lib/utils'
 import { useTheme } from '@/theme/useTheme'
 
 import { navigation } from './navigation'
+import { UserMenu } from './UserMenu'
 
 function SidebarNav({ onNavigate }) {
   return (
@@ -86,6 +87,7 @@ export function AppLayout() {
             >
               {theme === 'dark' ? <Sun /> : <Moon />}
             </Button>
+            <UserMenu />
           </div>
         </header>
 

@@ -26,6 +26,8 @@ export default defineConfig(({ mode }) => {
       },
     },
     test: {
+      // Threads start faster than forked processes on Windows (avoids worker start-up timeouts).
+      pool: 'threads',
       environment: 'jsdom',
       globals: true,
       setupFiles: ['./src/test/setup.js'],
