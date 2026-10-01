@@ -4,15 +4,10 @@ import { PageHeader } from '@/components/common/PageHeader'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { ServiceRow } from '@/features/system/components/ServiceRow'
+import { describeCheck } from '@/features/system/describeCheck'
 import { HEALTH_REFRESH_MS, useHealth } from '@/features/system/hooks/useHealth'
 import { formatDateTime } from '@/lib/format'
 import { cn } from '@/lib/utils'
-
-const CHECK_LABELS = { api: 'Backend API' }
-
-function checkStatus(value) {
-  return value === 'ok' ? 'healthy' : 'degraded'
-}
 
 export default function SystemStatusPage() {
   const { data, error, isPending, isFetching, refetch, dataUpdatedAt, errorUpdatedAt } = useHealth()
@@ -54,14 +49,8 @@ export default function SystemStatusPage() {
 
             {data &&
               !error &&
-              Object.entries(data.checks).map(([key, value]) => (
-                <ServiceRow
-                  key={key}
-                  name={CHECK_LABELS[key] ?? key}
-                  status={checkStatus(value)}
-                  statusLabel={value === 'ok' ? 'healthy' : value}
-                  detail={key === 'api' ? `v${data.version} · ${data.environment}` : undefined}
-                />
+              Object.entries(data.checks).map(([key, check]) => (
+                <ServiceRow key={key} {...describeCheck(key, check, data)} />
               ))}
           </ul>
 
