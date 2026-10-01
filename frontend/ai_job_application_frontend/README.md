@@ -1,16 +1,48 @@
-# React + Vite
+# Frontend — AI Job Application Platform
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+React 19 + Vite 8, JavaScript (JSX). Architecture: `assets/phase-1/system_architecture.md` §7.
 
-Currently, two official plugins are available:
+## Run locally
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+```bash
+cd frontend/ai_job_application_frontend
+npm install
+npm run dev          # http://localhost:5173 — /api is proxied to http://localhost:8000
+```
 
-## React Compiler
+Start the backend first (see `backend/README.md`), or the System Status page shows "unreachable".
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## Scripts
 
-## Expanding the ESLint configuration
+| Command | Purpose |
+|---|---|
+| `npm run dev` | dev server with hot reload |
+| `npm test` | run tests once (Vitest + Testing Library) |
+| `npm run test:watch` | tests in watch mode |
+| `npm run lint` | ESLint |
+| `npm run format` | Prettier (write) |
+| `npm run build` | production build → `dist/` |
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+## Structure
+
+```text
+src/
+├── main.jsx, App.jsx      providers (theme, TanStack Query, router, toasts)
+├── routes/routes.jsx      route table (grows per phase)
+├── layouts/               AppLayout (sidebar + header), navigation
+├── pages/                 one file per route
+├── features/<name>/       api.js, hooks/, components/
+├── components/ui/         shadcn-style primitives (button, card, badge)
+├── components/common/     shared building blocks (PageHeader, StatusBadge)
+├── api/                   client.js (fetch wrapper + ApiError), queryKeys, queryClient
+├── theme/                 light/dark theme
+├── lib/                   utilities
+├── styles/index.css       Tailwind + theme variables
+└── test/                  test setup and helpers
+```
+
+Rules: components never call `fetch` directly — always `api/client.js` through a feature hook.
+
+## Docker
+
+The `Dockerfile` builds the app and serves it with nginx, which also proxies `/api/` to `BACKEND_URL` (default `http://backend:8000`).
