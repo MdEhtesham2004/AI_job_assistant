@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime
 
 from sqlalchemy import Boolean, DateTime, ForeignKey, Index, Text, text
-from sqlalchemy.dialects.postgresql import CITEXT, UUID
+from sqlalchemy.dialects.postgresql import CITEXT, INET, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base, TimestampMixin, UUIDPrimaryKeyMixin, text_enum
@@ -50,3 +50,33 @@ class User(UUIDPrimaryKeyMixin, TimestampMixin, Base):
 
     def __repr__(self) -> str:
         return f"<User {self.email} role={self.role} status={self.approval_status}>"
+
+
+class AuthRefreshToken(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+    """Phase 0 §5.1 (+ family_id). Only the SHA-256 of the token is stored.
+
+    Every rotation creates a new row in the same family; reusing a revoked token revokes
+    the whole family (token theft detection).
+    """
+
+    __tablename__ = "auth_refresh_tokens"
+
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    family_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    token_hash: Mapped[str] = mapped_column(Text, unique=True, nullable=False)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    replaced_by_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("auth_refresh_tokens.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    user_agent: Mapped[str | None] = mapped_column(Text)
+    ip_address: Mapped[str | None] = mapped_column(INET)
+
+    __table_args__ = (
+        Index("ix_auth_refresh_tokens_user_id_expires_at", "user_id", "expires_at"),
+        Index("ix_auth_refresh_tokens_family_id", "family_id"),
+    )

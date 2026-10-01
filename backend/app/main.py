@@ -9,6 +9,7 @@ from app.core.config import Settings, get_settings
 from app.core.errors import register_exception_handlers
 from app.core.logging import configure_logging
 from app.core.middleware import REQUEST_ID_HEADER, RequestContextMiddleware
+from app.core.rate_limit import SlidingWindowRateLimiter
 from app.db.session import create_engine, create_session_factory
 
 
@@ -35,6 +36,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     # The engine connects lazily; creating it here does not require a running database.
     app.state.engine = create_engine(settings)
     app.state.session_factory = create_session_factory(app.state.engine)
+    app.state.rate_limiter = SlidingWindowRateLimiter()
 
     app.add_middleware(
         CORSMiddleware,

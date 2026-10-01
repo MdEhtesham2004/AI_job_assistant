@@ -16,7 +16,8 @@ from app.core.config import Settings
 from app.main import create_app
 
 BACKEND_DIR = Path(__file__).resolve().parents[1]
-TABLES = ("audit_logs", "tasks", "users")
+TABLES = ("auth_refresh_tokens", "audit_logs", "tasks", "users")
+TEST_SECRET_KEY = "test-secret-key-for-automated-tests-only-0123456789"
 
 
 @pytest.fixture(scope="session")
@@ -32,6 +33,8 @@ def settings() -> Settings:
         log_level="WARNING",
         database_url=base.test_database_url,
         test_database_url=base.test_database_url,
+        secret_key=TEST_SECRET_KEY,
+        cookie_secure=False,  # TestClient talks plain http
     )
 
 

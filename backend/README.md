@@ -38,6 +38,23 @@ uv run uvicorn app.main:app --reload --port 8000
 - Health (API + database + migration revision): http://localhost:8000/api/v1/health
 - API docs: http://localhost:8000/api/v1/docs
 
+## Authentication (Phase 4)
+
+| Endpoint | Purpose |
+|---|---|
+| `POST /api/v1/auth/register` | create account (status **pending** until an admin approves) → session |
+| `POST /api/v1/auth/login` | sign in → `{access_token, expires_in, user}` + refresh cookie |
+| `POST /api/v1/auth/refresh` | new access token from the refresh cookie (cookie is rotated) |
+| `POST /api/v1/auth/logout` | revoke the session, clear the cookie |
+| `POST /api/v1/auth/change-password` | requires current password; signs out other devices |
+| `POST /api/v1/auth/forgot-password` / `reset-password` | reset-token flow (email delivery arrives in Phase 12; in development the token is written to the server log) |
+| `GET /api/v1/users/me` | the signed-in user (also for pending accounts) |
+
+- Access token: JWT (HS256, `SECRET_KEY`), 15 minutes, sent as `Authorization: Bearer …`, kept in browser memory only.
+- Refresh token: random, 14 days, **httpOnly + SameSite=Strict** cookie on `/api/v1/auth`, stored only as SHA-256. Every refresh rotates it; reusing an old token signs out that whole session (theft detection). Reuse within 10 s answers `REFRESH_RACE` (parallel tabs) and the client retries.
+- Pending accounts can sign in and call `/users/me`; feature routes (`ApprovedUser` dependency) answer `403 ACCOUNT_PENDING`. Rejected/deactivated accounts cannot sign in (`ACCOUNT_REJECTED`, `ACCOUNT_DEACTIVATED`).
+- Auth endpoints are rate limited per IP (in-process; Redis later).
+
 ## Migrations (Alembic)
 
 | Command | Purpose |
