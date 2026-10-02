@@ -1,4 +1,15 @@
-import { Activity, FileText, House, ListChecks, Settings, UserRound, Users } from 'lucide-react'
+import {
+  Activity,
+  BellRing,
+  Briefcase,
+  FileText,
+  House,
+  ListChecks,
+  Search,
+  Settings,
+  UserRound,
+  Users,
+} from 'lucide-react'
 
 /**
  * Sidebar sections. Items are added as their phase is implemented (Phase 1 §8).
@@ -10,6 +21,14 @@ export const navigation = [
       { to: '/', label: 'Home', icon: House, end: true },
       { to: '/resumes', label: 'Resumes', icon: FileText },
       { to: '/tasks', label: 'Tasks', icon: ListChecks },
+    ],
+  },
+  {
+    title: 'Jobs',
+    items: [
+      { to: '/jobs/search', label: 'Find jobs', icon: Search },
+      { to: '/jobs', label: 'Jobs', icon: Briefcase, end: true },
+      { to: '/jobs/saved', label: 'Saved searches', icon: BellRing },
     ],
   },
   {

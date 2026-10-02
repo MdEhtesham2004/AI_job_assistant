@@ -6,6 +6,8 @@ const LABELS = {
   storage: 'File storage',
   gotenberg: 'PDF service (Gotenberg)',
   ai: 'AI provider',
+  scheduler: 'Scheduler (saved searches)',
+  jsearch: 'Job search (JSearch)',
 }
 
 export const SERVICE_ORDER = Object.keys(LABELS)
@@ -25,6 +27,14 @@ export function describeCheck(key, check) {
   }
   if (check?.status === 'not_configured') {
     return { name, status: 'degraded', statusLabel: 'not configured', detail: 'No API key set' }
+  }
+  if (check?.status === 'error' && key === 'scheduler') {
+    return {
+      name,
+      status: 'unreachable',
+      statusLabel: 'not running',
+      detail: 'Start Celery Beat — saved searches will not run on schedule',
+    }
   }
   if (check?.status !== 'ok') {
     return {
@@ -70,6 +80,22 @@ export function describeCheck(key, check) {
       }
     case 'ai':
       return { name, status: 'healthy', statusLabel: 'configured', detail: details.model }
+    case 'jsearch':
+      return {
+        name,
+        status: 'healthy',
+        statusLabel: 'configured',
+        detail: join(details.endpoint, details.country && `country ${details.country}`),
+      }
+    case 'scheduler':
+      return {
+        name,
+        status: 'healthy',
+        statusLabel: 'running',
+        detail: details.last_tick
+          ? `last check ${new Date(details.last_tick).toLocaleTimeString()}`
+          : undefined,
+      }
     default:
       return { name, status: 'healthy', statusLabel: 'healthy', detail: ms(details) ?? undefined }
   }

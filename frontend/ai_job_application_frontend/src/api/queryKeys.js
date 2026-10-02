@@ -18,6 +18,18 @@ export const queryKeys = {
     overview: () => ['resumes', 'overview'],
     version: (id) => ['resumes', 'version', id],
   },
+  jobs: {
+    all: () => ['jobs'],
+    lists: () => ['jobs', 'list'],
+    list: (filters) => ['jobs', 'list', filters],
+    counts: () => ['jobs', 'counts'],
+    detail: (id) => ['jobs', 'detail', id],
+    searches: () => ['jobs', 'searches'],
+    // Not under 'searches': refreshing the recent list must not refetch every run (loop).
+    searchRun: (id) => ['jobs', 'search-run', id],
+    suggestedRoles: () => ['jobs', 'suggested-roles'],
+    saved: () => ['jobs', 'saved'],
+  },
   tasks: {
     all: () => ['tasks'],
     list: (page) => ['tasks', 'list', page],

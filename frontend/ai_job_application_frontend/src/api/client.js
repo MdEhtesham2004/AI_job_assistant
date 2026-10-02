@@ -16,7 +16,7 @@ export class ApiError extends Error {
   }
 }
 
-async function send(path, { method = 'GET', body, headers = {}, signal } = {}) {
+async function send(path, { method = 'GET', body, headers = {}, signal, raw = false } = {}) {
   const init = {
     method,
     headers: { Accept: 'application/json', ...headers },
@@ -41,6 +41,7 @@ async function send(path, { method = 'GET', body, headers = {}, signal } = {}) {
   }
 
   const requestId = response.headers.get('X-Request-ID')
+  if (raw && response.ok) return response // file downloads: the caller reads the body
   if (response.status === 204) return null
 
   const isJson = response.headers.get('Content-Type')?.includes('application/json')
@@ -124,4 +125,17 @@ export const api = {
   put: (path, body, options) => apiRequest(path, { ...options, method: 'PUT', body }),
   patch: (path, body, options) => apiRequest(path, { ...options, method: 'PATCH', body }),
   delete: (path, options) => apiRequest(path, { ...options, method: 'DELETE' }),
+  /** Download an authenticated file and hand it to the browser as a download. */
+  download: async (path, fallbackName) => {
+    const response = await apiRequest(path, { method: 'GET', raw: true })
+    const disposition = response.headers.get('Content-Disposition') ?? ''
+    const name = /filename="([^"]+)"/.exec(disposition)?.[1] ?? fallbackName
+    const url = URL.createObjectURL(await response.blob())
+    const link = Object.assign(document.createElement('a'), { href: url, download: name })
+    document.body.append(link)
+    link.click()
+    link.remove()
+    setTimeout(() => URL.revokeObjectURL(url), 1000)
+    return name
+  },
 }
