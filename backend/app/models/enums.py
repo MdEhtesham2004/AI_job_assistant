@@ -84,6 +84,11 @@ class AnalysisDecision(StrEnum):
     SKIP = "skip"
 
 
+class DocumentStatus(StrEnum):
+    DRAFT = "draft"
+    FINAL = "final"
+
+
 class NotificationSeverity(StrEnum):
     INFO = "info"
     SUCCESS = "success"
