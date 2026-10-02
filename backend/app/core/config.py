@@ -1,14 +1,16 @@
 from functools import lru_cache
 from typing import Literal
 
-from pydantic import Field, model_validator
+from pydantic import AliasChoices, Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
     """Application settings, read from environment variables (and `.env` in development)."""
 
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
+    model_config = SettingsConfigDict(
+        env_file=".env", env_file_encoding="utf-8", extra="ignore", populate_by_name=True
+    )
 
     app_name: str = "AI Job Application Platform"
     app_env: Literal["development", "test", "production"] = "development"
@@ -37,6 +39,35 @@ class Settings(BaseSettings):
     refresh_cookie_name: str = "refresh_token"
     # None → secure cookies everywhere except development.
     cookie_secure: bool | None = None
+
+    # --- Infrastructure (Phase 6) ---
+    redis_url: str = "redis://localhost:6379/0"
+    # Tests and simple local runs can skip the broker: tasks are recorded but not sent.
+    celery_enabled: bool = True
+    task_max_retries: int = 3
+
+    # File storage: "local" (development, tests) or "s3" (production, e.g. Cloudflare R2).
+    storage_backend: Literal["local", "s3"] = "local"
+    storage_local_path: str = "storage"
+    file_link_minutes: int = 15
+
+    gotenberg_url: str = "http://localhost:3000"
+    gotenberg_timeout_seconds: float = 60.0
+
+    # Any OpenAI-compatible chat-completions API (OpenRouter by default).
+    ai_base_url: str = "https://openrouter.ai/api/v1"
+    ai_api_key: str = Field(
+        default="",
+        repr=False,
+        validation_alias=AliasChoices("AI_API_KEY", "OPENROUTER_API_KEY", "OPENAI_API_KEY"),
+    )
+    ai_model_default: str = "openai/gpt-oss-120b"
+    ai_timeout_seconds: float = 60.0
+    ai_cache_ttl_seconds: int = 7 * 24 * 3600
+
+    @property
+    def ai_configured(self) -> bool:
+        return bool(self.ai_api_key)
 
     @property
     def refresh_cookie_secure(self) -> bool:

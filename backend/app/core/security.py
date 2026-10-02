@@ -17,6 +17,7 @@ _DUMMY_HASH = _password_hash.hash("timing-equaliser-not-a-real-password")
 JWT_ALGORITHM = "HS256"
 ACCESS_TOKEN_TYPE = "access"
 RESET_TOKEN_TYPE = "password_reset"
+FILE_TOKEN_TYPE = "file"
 
 
 def hash_password(password: str) -> str:
@@ -103,6 +104,44 @@ class ResetTokenClaims:
 def decode_password_reset_token(token: str, secret_key: str) -> ResetTokenClaims:
     user_id, payload = _decode(token, secret_key, RESET_TOKEN_TYPE)
     return ResetTokenClaims(user_id=user_id, password_fingerprint=str(payload.get("pwd", "")))
+
+
+# --- Signed file links (short-lived; issued only to the owner of the file) ---
+
+
+@dataclass(frozen=True)
+class FileTokenClaims:
+    owner_id: uuid.UUID
+    key: str
+    filename: str
+    content_type: str
+
+
+def create_file_token(claims: FileTokenClaims, secret_key: str, minutes: int) -> str:
+    now = datetime.now(UTC)
+    payload = {
+        "sub": str(claims.owner_id),
+        "type": FILE_TOKEN_TYPE,
+        "iat": now,
+        "exp": now + timedelta(minutes=minutes),
+        "key": claims.key,
+        "name": claims.filename,
+        "ct": claims.content_type,
+    }
+    return jwt.encode(payload, secret_key, algorithm=JWT_ALGORITHM)
+
+
+def decode_file_token(token: str, secret_key: str) -> FileTokenClaims:
+    owner_id, payload = _decode(token, secret_key, FILE_TOKEN_TYPE)
+    try:
+        return FileTokenClaims(
+            owner_id=owner_id,
+            key=str(payload["key"]),
+            filename=str(payload["name"]),
+            content_type=str(payload["ct"]),
+        )
+    except KeyError as exc:
+        raise InvalidTokenError() from exc
 
 
 def _decode(token: str, secret_key: str, expected_type: str) -> tuple[uuid.UUID, dict]:

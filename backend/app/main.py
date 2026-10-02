@@ -10,13 +10,26 @@ from app.core.errors import register_exception_handlers
 from app.core.logging import configure_logging
 from app.core.middleware import REQUEST_ID_HEADER, RequestContextMiddleware
 from app.core.rate_limit import SlidingWindowRateLimiter
+from app.core.redis import create_redis
 from app.db.session import create_engine, create_session_factory
+from app.integrations.gotenberg import GotenbergClient
+from app.integrations.storage import create_storage
+from app.services.tasks import RecordingDispatcher, TaskDispatcher
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     yield
     await app.state.engine.dispose()
+    await app.state.redis.aclose()
+
+
+def create_dispatcher(settings: Settings) -> TaskDispatcher:
+    if not settings.celery_enabled:
+        return RecordingDispatcher()
+    from app.workers.dispatch import CeleryDispatcher
+
+    return CeleryDispatcher()
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -37,6 +50,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.engine = create_engine(settings)
     app.state.session_factory = create_session_factory(app.state.engine)
     app.state.rate_limiter = SlidingWindowRateLimiter()
+    # Phase 6 infrastructure (all connect lazily).
+    app.state.redis = create_redis(settings)
+    app.state.storage = create_storage(settings)
+    app.state.gotenberg = GotenbergClient.from_settings(settings)
+    app.state.dispatcher = create_dispatcher(settings)
 
     app.add_middleware(
         CORSMiddleware,
