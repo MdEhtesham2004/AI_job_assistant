@@ -26,6 +26,8 @@ const TASK_LABELS = {
   job_fetch_page: 'Job description fetch',
   job_analyze: 'Match score',
   job_analyze_batch: 'Batch match scoring',
+  resume_tailor: 'Tailored resume',
+  cover_letter: 'Cover letter',
 }
 
 export function taskLabel(type) {

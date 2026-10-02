@@ -27,6 +27,13 @@ export const jobsApi = {
   analysisSummary: (filters) => api.get(`/jobs/analysis-summary?${toQuery(filters)}`),
   analyzeBatch: (filters) => api.post(`/jobs/analyze-batch?${toQuery(filters)}`),
   scanText: (body) => api.post('/jobs/scan-text', body),
+  // Phase 10 — tailored resume and cover letter
+  documents: (id) => api.get(`/jobs/${id}/documents`),
+  tailor: (id) => api.post(`/jobs/${id}/tailored-resume`),
+  coverLetter: (id, contactName) =>
+    api.post(`/jobs/${id}/cover-letter`, { contact_name: contactName || null }),
+  editTailored: (versionId, parsed) => api.put(`/resumes/versions/${versionId}/content`, parsed),
+  editCoverLetter: (letterId, changes) => api.patch(`/cover-letters/${letterId}`, changes),
 }
 
 export const DECISION_LABELS = {

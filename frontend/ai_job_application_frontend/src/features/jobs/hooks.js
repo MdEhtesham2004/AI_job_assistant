@@ -205,6 +205,57 @@ export function useAnalyzeBatch({ onDone } = {}) {
   }
 }
 
+// ---------- documents (Phase 10) ----------
+
+export function useJobDocuments(jobId) {
+  return useQuery({
+    queryKey: queryKeys.jobs.documents(jobId),
+    queryFn: () => jobsApi.documents(jobId),
+    enabled: Boolean(jobId),
+    refetchInterval: (query) => (query.state.data?.active_tasks.length ? POLL_MS : false),
+  })
+}
+
+/** Start "tailored resume" or "cover letter" and follow the task. */
+export function useGenerateDocument(start, { runningTaskId, label }) {
+  const mutation = useMutation({
+    mutationFn: start,
+    onError: (error) => toast.error(error.message),
+  })
+  const task = useFollowTask(mutation.data?.task_id ?? runningTaskId ?? null, {
+    onSuccess: () => toast.success(`${label} ready.`),
+  })
+  return {
+    start: (...args) => mutation.mutate(...args),
+    task,
+    running: mutation.isPending || isActive(task),
+  }
+}
+
+function useSaveDocument(mutationFn, success) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn,
+    onSuccess: (docs) => {
+      queryClient.setQueryData(queryKeys.jobs.documents(docs.job_id), docs)
+      toast.success(success)
+    },
+    onError: (error) => toast.error(error.message),
+  })
+}
+
+export const useEditTailored = () =>
+  useSaveDocument(
+    ({ versionId, parsed }) => jobsApi.editTailored(versionId, parsed),
+    'Tailored resume saved — PDF updated.',
+  )
+
+export const useEditCoverLetter = () =>
+  useSaveDocument(
+    ({ letterId, changes }) => jobsApi.editCoverLetter(letterId, changes),
+    'Cover letter saved.',
+  )
+
 export function useScanText() {
   return useMutation({ mutationFn: jobsApi.scanText })
 }
