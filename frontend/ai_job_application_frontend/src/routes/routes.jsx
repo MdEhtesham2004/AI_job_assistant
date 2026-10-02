@@ -4,6 +4,9 @@ import AdminUsersPage from '@/pages/admin/AdminUsersPage'
 import AwaitingApprovalPage from '@/pages/AwaitingApprovalPage'
 import ChangePasswordPage from '@/pages/ChangePasswordPage'
 import HomePage from '@/pages/HomePage'
+import JobDetailPage from '@/pages/JobDetailPage'
+import JobSearchPage from '@/pages/JobSearchPage'
+import JobsPage from '@/pages/JobsPage'
 import LoginPage from '@/pages/LoginPage'
 import NotFoundPage from '@/pages/NotFoundPage'
 import ProfilePage from '@/pages/ProfilePage'
@@ -11,6 +14,8 @@ import RegisterPage from '@/pages/RegisterPage'
 import ResumesPage from '@/pages/ResumesPage'
 import ResumeVersionPage from '@/pages/ResumeVersionPage'
 import RouteErrorPage from '@/pages/RouteErrorPage'
+import SavedSearchesPage from '@/pages/SavedSearchesPage'
+import SearchRunPage from '@/pages/SearchRunPage'
 import SettingsPage from '@/pages/SettingsPage'
 import SystemStatusPage from '@/pages/SystemStatusPage'
 import TasksPage from '@/pages/TasksPage'
@@ -53,6 +58,11 @@ export const routes = [
         ),
         children: [
           { index: true, element: <HomePage /> },
+          { path: 'jobs', element: <JobsPage /> },
+          { path: 'jobs/search', element: <JobSearchPage /> },
+          { path: 'jobs/saved', element: <SavedSearchesPage /> },
+          { path: 'jobs/searches/:runId', element: <SearchRunPage /> },
+          { path: 'jobs/:jobId', element: <JobDetailPage /> },
           { path: 'resumes', element: <ResumesPage /> },
           { path: 'resumes/:versionId', element: <ResumeVersionPage /> },
           { path: 'tasks', element: <TasksPage /> },

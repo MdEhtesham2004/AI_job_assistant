@@ -22,6 +22,8 @@ const TASK_LABELS = {
   resume_ats: 'ATS analysis',
   resume_improve: 'Improved resume',
   resume_linkedin: 'LinkedIn summary',
+  job_search: 'Job search',
+  job_fetch_page: 'Job description fetch',
 }
 
 export function taskLabel(type) {
