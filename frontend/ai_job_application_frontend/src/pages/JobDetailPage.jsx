@@ -19,6 +19,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Dialog } from '@/components/ui/dialog'
 import { Textarea } from '@/components/ui/textarea'
 import { AnalysisPanel } from '@/features/jobs/components/AnalysisPanel'
+import { DocumentsCard } from '@/features/jobs/components/DocumentsCard'
 import { JobStateBadge, QualityBadge } from '@/features/jobs/components/JobBadges'
 import { useFetchDescription, useJob, useUpdateJob } from '@/features/jobs/hooks'
 import { ProgressBar } from '@/features/tasks/components/TaskStatusBadge'
@@ -141,6 +142,7 @@ function JobDetail({ job }) {
 
         <div className="flex flex-col gap-6">
           <AnalysisPanel job={job} />
+          <DocumentsCard jobId={job.id} canGenerate={job.description_quality !== 'missing'} />
           <NotesCard job={job} />
           <Card>
             <CardHeader>

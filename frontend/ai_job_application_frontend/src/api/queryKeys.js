@@ -30,6 +30,7 @@ export const queryKeys = {
     suggestedRoles: () => ['jobs', 'suggested-roles'],
     saved: () => ['jobs', 'saved'],
     analysisSummary: (filters) => ['jobs', 'analysis-summary', filters],
+    documents: (id) => ['jobs', 'documents', id],
   },
   tasks: {
     all: () => ['tasks'],

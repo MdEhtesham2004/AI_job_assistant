@@ -3,6 +3,7 @@ import { AuthLayout } from '@/layouts/AuthLayout'
 import AdminUsersPage from '@/pages/admin/AdminUsersPage'
 import AwaitingApprovalPage from '@/pages/AwaitingApprovalPage'
 import ChangePasswordPage from '@/pages/ChangePasswordPage'
+import CoverLetterPage from '@/pages/CoverLetterPage'
 import HomePage from '@/pages/HomePage'
 import JobDetailPage from '@/pages/JobDetailPage'
 import JobSearchPage from '@/pages/JobSearchPage'
@@ -19,6 +20,7 @@ import ScanPage from '@/pages/ScanPage'
 import SearchRunPage from '@/pages/SearchRunPage'
 import SettingsPage from '@/pages/SettingsPage'
 import SystemStatusPage from '@/pages/SystemStatusPage'
+import TailoredResumePage from '@/pages/TailoredResumePage'
 import TasksPage from '@/pages/TasksPage'
 
 import { GuestOnly, RequireAdmin, RequireApproved, RequireAuth } from './guards'
@@ -65,6 +67,8 @@ export const routes = [
           { path: 'jobs/scan', element: <ScanPage /> },
           { path: 'jobs/searches/:runId', element: <SearchRunPage /> },
           { path: 'jobs/:jobId', element: <JobDetailPage /> },
+          { path: 'jobs/:jobId/tailored', element: <TailoredResumePage /> },
+          { path: 'jobs/:jobId/cover-letter', element: <CoverLetterPage /> },
           { path: 'resumes', element: <ResumesPage /> },
           { path: 'resumes/:versionId', element: <ResumeVersionPage /> },
           { path: 'tasks', element: <TasksPage /> },
