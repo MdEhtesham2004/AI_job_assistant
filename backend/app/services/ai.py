@@ -50,6 +50,8 @@ class AiService:
     ) -> AiResult[OutputT]:
         if user_id is not None:
             await self._check_budget(user_id)
+        # End the transaction: no database connection is held open while the AI answers.
+        await self.session.commit()
         try:
             result = await self.client.complete_json(messages=messages, output=output, model=model)
         except ExternalServiceError:

@@ -9,8 +9,15 @@ from fastapi.testclient import TestClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.accounts import User
+from app.models.enums import ResumeKind
+from app.models.resumes import Resume, ResumeAtsReport, ResumeVersion
 from app.models.system import Task
 from app.repositories.profiles import ProfileRepository
+from app.repositories.resumes import (
+    ResumeAtsReportRepository,
+    ResumeRepository,
+    ResumeVersionRepository,
+)
 from app.repositories.tasks import TaskRepository
 from tests.helpers import make_user
 
@@ -56,6 +63,52 @@ async def test_profiles_are_separate_per_user(session: AsyncSession) -> None:
     assert bob_profile.user_id == bob.id
     assert bob_profile.headline is None
     assert await ProfileRepository(session, owner_id=bob.id).get(alice.id) is None
+
+
+async def test_resumes_versions_and_reports_are_private(session: AsyncSession) -> None:
+    """Phase 7. The HTTP side is covered by test_resumes.py::test_resumes_are_private."""
+    alice, bob = await _two_users(session)
+    resume = await ResumeRepository(session, owner_id=alice.id).add(Resume())
+    version = await ResumeVersionRepository(session, owner_id=alice.id).add(
+        ResumeVersion(
+            resume_id=resume.id,
+            version_no=1,
+            kind=ResumeKind.MASTER,
+            file_key="users/a/resumes/cv.pdf",
+            file_name="cv.pdf",
+            mime_type="application/pdf",
+            file_size=10,
+        )
+    )
+    report = await ResumeAtsReportRepository(session, owner_id=alice.id).add(
+        ResumeAtsReport(
+            resume_version_id=version.id,
+            ats_score=70,
+            section_scores={},
+            strengths=[],
+            missing_skills=[],
+            top_roles=[],
+            suggestions=[],
+            model="m",
+            prompt_version="v",
+        )
+    )
+    await session.commit()
+
+    bob_resumes = ResumeRepository(session, owner_id=bob.id)
+    bob_versions = ResumeVersionRepository(session, owner_id=bob.id)
+    bob_reports = ResumeAtsReportRepository(session, owner_id=bob.id)
+
+    assert await bob_resumes.first() is None
+    assert await bob_resumes.get(resume.id) is None
+    assert await bob_versions.get(version.id) is None
+    assert await bob_versions.for_resume(resume.id) == []
+    assert await bob_versions.next_version_no(resume.id) == 1  # alice's versions not counted
+    assert await bob_reports.get(report.id) is None
+    assert await bob_reports.latest_for(version.id) is None
+    assert await bob_reports.latest_scores([version.id]) == {}
+    alice_reports = ResumeAtsReportRepository(session, owner_id=alice.id)
+    assert await alice_reports.latest_scores([version.id]) == {version.id: 70}
 
 
 def test_api_profile_and_settings_return_only_your_own(

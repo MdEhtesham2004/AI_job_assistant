@@ -1,3 +1,4 @@
+import uuid
 from collections.abc import Sequence
 
 from sqlalchemy import func, select
@@ -19,6 +20,19 @@ class TaskRepository(OwnedRepository[Task]):
             self.scoped().order_by(Task.created_at.desc()).limit(limit).offset(offset)
         )
         return rows.all(), total
+
+    async def active_for(self, entity_type: str, entity_id: uuid.UUID) -> Sequence[Task]:
+        """Queued or running tasks working on one entity (e.g. a resume version)."""
+        rows = await self.session.scalars(
+            self.scoped()
+            .where(
+                Task.entity_type == entity_type,
+                Task.entity_id == entity_id,
+                Task.status.in_([TaskStatus.QUEUED, TaskStatus.RUNNING]),
+            )
+            .order_by(Task.created_at)
+        )
+        return rows.all()
 
 
 async def task_counts(session: AsyncSession) -> dict[str, int]:

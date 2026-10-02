@@ -62,8 +62,20 @@ class Settings(BaseSettings):
         validation_alias=AliasChoices("AI_API_KEY", "OPENROUTER_API_KEY", "OPENAI_API_KEY"),
     )
     ai_model_default: str = "openai/gpt-oss-120b"
-    ai_timeout_seconds: float = 60.0
+    # Hard limit for one AI request (the whole response, not only between bytes).
+    ai_timeout_seconds: float = 120.0
+    ai_max_output_tokens: int = 8000
+    # Reasoning models (e.g. gpt-oss): low effort is enough for extraction and scoring.
+    ai_reasoning_effort: Literal["low", "medium", "high"] | None = "low"
+    # OpenRouter provider routing. "throughput" avoids slow hosts that loop on strict JSON
+    # (measured in Phase 7: cheapest-first routing sometimes took > 90 s per call).
+    ai_provider_sort: Literal["price", "throughput", "latency"] | None = "throughput"
     ai_cache_ttl_seconds: int = 7 * 24 * 3600
+
+    # --- Resumes (Phase 7) ---
+    resume_max_bytes: int = 5 * 1024 * 1024
+    # Resume text sent to the AI is cut to this many characters (cost control).
+    resume_ai_max_chars: int = 20_000
 
     @property
     def ai_configured(self) -> bool:

@@ -1,5 +1,6 @@
 """Storage, Gotenberg and AI client — external services mocked."""
 
+import asyncio
 import json
 from pathlib import Path
 
@@ -116,6 +117,9 @@ async def test_ai_client_returns_validated_output_with_usage(settings: Settings)
     sent = json.loads(route.calls.last.request.content)
     assert sent["model"] == "test/model"
     assert sent["response_format"]["type"] == "json_schema"
+    assert sent["max_tokens"] == settings.ai_max_output_tokens
+    assert sent["reasoning"] == {"effort": "low"}
+    assert sent["provider"] == {"sort": "throughput"}
     assert route.calls.last.request.headers["Authorization"] == "Bearer test-ai-key"
 
 
@@ -167,6 +171,19 @@ async def test_ai_client_provider_error(settings: Settings) -> None:
         await AiClient(settings).complete_json(messages=MESSAGES, output=Answer)
 
     assert exc.value.details["status"] == 401
+
+
+@respx.mock
+async def test_ai_client_gives_up_on_a_response_that_never_ends(settings: Settings) -> None:
+    async def slow(request: httpx.Request) -> httpx.Response:
+        await asyncio.sleep(5)  # e.g. a model stuck emitting whitespace
+        return chat_response({"ok": True, "message": "late"})
+
+    respx.post(COMPLETIONS).mock(side_effect=slow)
+    quick = settings.model_copy(update={"ai_timeout_seconds": 0.2})
+
+    with pytest.raises(ExternalServiceError, match="did not answer within"):
+        await AiClient(quick).complete_json(messages=MESSAGES, output=Answer)
 
 
 async def test_ai_client_without_key_is_not_configured(settings: Settings) -> None:

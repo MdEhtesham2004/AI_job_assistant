@@ -17,6 +17,10 @@ TASK_QUEUES: dict[str, str] = {
     "test_pdf": "pdf",
     "test_failure": "default",
     "ai_test": "ai",
+    "resume_parse": "ai",
+    "resume_ats": "ai",
+    "resume_improve": "ai",
+    "resume_linkedin": "ai",
 }
 
 
@@ -83,20 +87,28 @@ def public_result(task: Task, settings: Settings) -> dict[str, Any] | None:
     result = dict(task.result)
     file_info = result.pop("file", None)
     if isinstance(file_info, dict) and task.user_id is not None:
-        token = create_file_token(
-            FileTokenClaims(
-                owner_id=task.user_id,
-                key=str(file_info["key"]),
-                filename=str(file_info["name"]),
-                content_type=str(file_info["content_type"]),
-            ),
-            settings.secret_key,
-            settings.file_link_minutes,
-        )
         result["file"] = {
             "name": file_info["name"],
             "size": file_info.get("size"),
             "content_type": file_info["content_type"],
-            "download_url": f"{settings.api_prefix}/files/{token}",
+            "download_url": download_url(
+                settings,
+                task.user_id,
+                key=str(file_info["key"]),
+                filename=str(file_info["name"]),
+                content_type=str(file_info["content_type"]),
+            ),
         }
     return result
+
+
+def download_url(
+    settings: Settings, owner_id: uuid.UUID, *, key: str, filename: str, content_type: str
+) -> str:
+    """A short-lived signed link to a stored file (storage keys are never exposed)."""
+    token = create_file_token(
+        FileTokenClaims(owner_id=owner_id, key=key, filename=filename, content_type=content_type),
+        settings.secret_key,
+        settings.file_link_minutes,
+    )
+    return f"{settings.api_prefix}/files/{token}"
