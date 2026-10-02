@@ -1,14 +1,23 @@
-import { Download, Search } from 'lucide-react'
-import { useState } from 'react'
+import { Download, Gauge, Search } from 'lucide-react'
+import { useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router'
 
 import { PageHeader } from '@/components/common/PageHeader'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
+import { Dialog } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
+import { COST_PER_SCORE_USD, viewFilters } from '@/features/jobs/api'
+import { ScoringBar } from '@/features/jobs/components/ScoringBar'
 import { JobRow } from '@/features/jobs/components/JobRow'
-import { useExportJobs, useJobCounts, useJobs } from '@/features/jobs/hooks'
+import {
+  useAnalysisSummary,
+  useAnalyzeBatch,
+  useExportJobs,
+  useJobCounts,
+  useJobs,
+} from '@/features/jobs/hooks'
 import { cn } from '@/lib/utils'
 
 const PAGE_SIZE = 20
@@ -36,7 +45,16 @@ const SORTS = [
   { value: 'posted', label: 'Newest posting' },
   { value: 'found', label: 'Recently found' },
   { value: 'company', label: 'Company A–Z' },
+  { value: 'score', label: 'Best match' },
 ]
+const MIN_SCORES = [
+  { value: '', label: 'Any score' },
+  { value: '50', label: 'Score ≥ 50' },
+  { value: '65', label: 'Score ≥ 65' },
+  { value: '85', label: 'Score ≥ 85' },
+]
+
+const cost = (n) => `≈ $${Math.max(0.01, n * COST_PER_SCORE_USD).toFixed(2)}`
 
 export default function JobsPage() {
   const [params, setParams] = useSearchParams()
@@ -47,17 +65,30 @@ export default function JobsPage() {
     source: params.get('source') ?? '',
     posted_within_days: params.get('posted') ?? '',
     remote_only: params.get('remote') === '1',
+    min_score: params.get('min') ?? '',
     sort: params.get('sort') ?? 'posted',
     page: Number(params.get('page') ?? 1),
     page_size: PAGE_SIZE,
   }
   const jobs = useJobs(filters)
+  const view = viewFilters(filters)
   const exporter = useExportJobs()
   const [withDescriptions, setWithDescriptions] = useState(false)
+  const [exportPrompt, setExportPrompt] = useState(null)
+  const exportAfterScoring = useRef(null)
+  const summary = useAnalysisSummary(view)
+  const batch = useAnalyzeBatch({
+    onDone: () => {
+      if (exportAfterScoring.current) exporter.mutate(exportAfterScoring.current)
+      exportAfterScoring.current = null
+    },
+  })
+  const exportBody = { ...view, include_description: withDescriptions }
+  const unscored = summary.data?.to_score ?? 0
   const onExport = () => {
-    // eslint-disable-next-line no-unused-vars -- export every page, not just this one
-    const { page, page_size, ...current } = filters
-    exporter.mutate({ ...current, include_description: withDescriptions })
+    // Saved jobs: offer to score the unscored ones first (admin request; never automatic).
+    if (filters.state === 'saved' && unscored > 0) setExportPrompt(unscored)
+    else exporter.mutate(exportBody)
   }
   const counts = useJobCounts().data
   const data = jobs.data
@@ -134,7 +165,7 @@ export default function JobsPage() {
 
       <form
         onSubmit={onSearch}
-        className="mb-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-[2fr_1.5fr_1fr_1fr_1fr_auto]"
+        className="mb-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-[2fr_1.5fr_1fr_1fr_1fr_1fr_auto]"
         key={`${filters.q}|${filters.location}`}
       >
         <Input
@@ -182,6 +213,17 @@ export default function JobsPage() {
             </option>
           ))}
         </Select>
+        <Select
+          aria-label="Minimum score"
+          value={filters.min_score}
+          onChange={(e) => update({ min: e.target.value })}
+        >
+          {MIN_SCORES.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </Select>
         <Button type="submit" variant="outline">
           Apply
         </Button>
@@ -195,6 +237,13 @@ export default function JobsPage() {
           Remote only
         </label>
       </form>
+
+      <ScoringBar
+        summary={summary}
+        batch={batch}
+        saved={filters.state === 'saved'}
+        onScore={() => batch.start(view)}
+      />
 
       <Card>
         <CardContent className="p-0">
@@ -244,6 +293,38 @@ export default function JobsPage() {
           </Button>
         </div>
       )}
+
+      <Dialog
+        open={Boolean(exportPrompt)}
+        onClose={() => setExportPrompt(null)}
+        title="Score your saved jobs first?"
+        description={`${exportPrompt} saved job${exportPrompt === 1 ? ' has' : 's have'} no match score yet. Scoring adds the score columns to the export (${cost(exportPrompt ?? 0)} of AI usage).`}
+      >
+        <div className="flex flex-wrap justify-end gap-2">
+          <Button variant="outline" onClick={() => setExportPrompt(null)}>
+            Cancel
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => {
+              setExportPrompt(null)
+              exporter.mutate(exportBody)
+            }}
+          >
+            Export without scores
+          </Button>
+          <Button
+            onClick={() => {
+              setExportPrompt(null)
+              exportAfterScoring.current = exportBody
+              batch.start(view)
+            }}
+          >
+            <Gauge />
+            Score, then export
+          </Button>
+        </div>
+      </Dialog>
     </>
   )
 }

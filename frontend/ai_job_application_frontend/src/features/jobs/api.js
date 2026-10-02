@@ -22,6 +22,27 @@ export const jobsApi = {
   get: (id) => api.get(`/jobs/${id}`),
   update: (id, changes) => api.patch(`/jobs/${id}`, changes),
   fetchDescription: (id) => api.post(`/jobs/${id}/fetch-description`),
+  // Phase 9 — match scores, only when asked
+  analyze: (id, force = false) => api.post(`/jobs/${id}/analyze`, force ? { force } : undefined),
+  analysisSummary: (filters) => api.get(`/jobs/analysis-summary?${toQuery(filters)}`),
+  analyzeBatch: (filters) => api.post(`/jobs/analyze-batch?${toQuery(filters)}`),
+  scanText: (body) => api.post('/jobs/scan-text', body),
+}
+
+export const DECISION_LABELS = {
+  use_master: 'Apply with your resume',
+  tailor: 'Tailor first',
+  skip: 'Weak match',
+}
+
+/** Rough AI cost per scored job, shown before batch scoring (live: ≈ $0.001). */
+export const COST_PER_SCORE_USD = 0.001
+
+/** Filters for "the current view" — the list's filters without paging. */
+export function viewFilters(filters) {
+  // eslint-disable-next-line no-unused-vars -- paging is not part of the view
+  const { page, page_size, ...view } = filters
+  return view
 }
 
 export const savedSearchesApi = {

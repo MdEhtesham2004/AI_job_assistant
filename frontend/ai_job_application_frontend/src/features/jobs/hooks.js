@@ -11,10 +11,11 @@ import { jobsApi, savedSearchesApi } from './api'
 const POLL_MS = 2000
 const RUN_ACTIVE = ['queued', 'running']
 
-export function useJobs(filters) {
+export function useJobs(filters, { enabled = true } = {}) {
   return useQuery({
     queryKey: queryKeys.jobs.list(filters),
     queryFn: () => jobsApi.list(filters),
+    enabled,
     placeholderData: keepPreviousData,
   })
 }
@@ -27,6 +28,7 @@ export function useJob(id) {
   return useQuery({
     queryKey: queryKeys.jobs.detail(id),
     queryFn: () => jobsApi.get(id),
+    enabled: Boolean(id),
     refetchInterval: (query) => (query.state.data?.active_tasks.length ? POLL_MS : false),
   })
 }
@@ -134,6 +136,77 @@ export function useFetchDescription(jobId, runningTaskId) {
   }, [task?.id, status])
 
   return { start: () => mutation.mutate(), task, running: mutation.isPending || isActive(task) }
+}
+
+// ---------- match scores (Phase 9, on demand) ----------
+
+/** Follow one background task and refresh all job data when it finishes. */
+function useFollowTask(taskId, { onSuccess } = {}) {
+  const queryClient = useQueryClient()
+  const task = useTaskPolling(taskId).data
+  const status = task?.status
+  useEffect(() => {
+    if (!task || isActive(task)) return
+    queryClient.invalidateQueries({ queryKey: queryKeys.jobs.all() })
+    if (status === 'succeeded') onSuccess?.(task)
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- react once per finished task
+  }, [task?.id, status])
+  return task
+}
+
+/** "Get match score" for one job. Cached scores come back at once (no task). */
+export function useAnalyzeJob(jobId, runningTaskId) {
+  const queryClient = useQueryClient()
+  const mutation = useMutation({
+    mutationFn: (force) => jobsApi.analyze(jobId, force),
+    onSuccess: (started) => {
+      if (started.cached) queryClient.invalidateQueries({ queryKey: queryKeys.jobs.all() })
+    },
+    onError: (error) => toast.error(error.message),
+  })
+  const task = useFollowTask(mutation.data?.task_id ?? runningTaskId ?? null)
+  return {
+    start: (force = false) => mutation.mutate(force),
+    task,
+    running: mutation.isPending || isActive(task),
+  }
+}
+
+export function useAnalysisSummary(filters, { enabled = true } = {}) {
+  return useQuery({
+    queryKey: queryKeys.jobs.analysisSummary(filters),
+    queryFn: () => jobsApi.analysisSummary(filters),
+    enabled,
+    retry: false, // 409 RESUME_REQUIRED is an answer, not a glitch
+  })
+}
+
+/** "Score all" for a view; `onDone` runs after the batch task has finished. */
+export function useAnalyzeBatch({ onDone } = {}) {
+  const mutation = useMutation({
+    mutationFn: jobsApi.analyzeBatch,
+    onSuccess: (started) => {
+      if (!started.task_id) toast.info('Everything here already has a match score.')
+    },
+    onError: (error) => toast.error(error.message),
+  })
+  const task = useFollowTask(mutation.data?.task_id ?? null, {
+    onSuccess: (finished) => {
+      const r = finished.result ?? {}
+      if (r.stopped) toast.warning(`Stopped after ${r.scored} jobs: ${r.stopped}`)
+      else toast.success(`Scored ${r.scored} job${r.scored === 1 ? '' : 's'}.`)
+      onDone?.(finished)
+    },
+  })
+  return {
+    start: (filters) => mutation.mutate(filters),
+    task,
+    running: mutation.isPending || isActive(task),
+  }
+}
+
+export function useScanText() {
+  return useMutation({ mutationFn: jobsApi.scanText })
 }
 
 // ---------- saved searches ----------

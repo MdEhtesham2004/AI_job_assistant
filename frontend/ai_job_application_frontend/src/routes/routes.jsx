@@ -15,6 +15,7 @@ import ResumesPage from '@/pages/ResumesPage'
 import ResumeVersionPage from '@/pages/ResumeVersionPage'
 import RouteErrorPage from '@/pages/RouteErrorPage'
 import SavedSearchesPage from '@/pages/SavedSearchesPage'
+import ScanPage from '@/pages/ScanPage'
 import SearchRunPage from '@/pages/SearchRunPage'
 import SettingsPage from '@/pages/SettingsPage'
 import SystemStatusPage from '@/pages/SystemStatusPage'
@@ -61,6 +62,7 @@ export const routes = [
           { path: 'jobs', element: <JobsPage /> },
           { path: 'jobs/search', element: <JobSearchPage /> },
           { path: 'jobs/saved', element: <SavedSearchesPage /> },
+          { path: 'jobs/scan', element: <ScanPage /> },
           { path: 'jobs/searches/:runId', element: <SearchRunPage /> },
           { path: 'jobs/:jobId', element: <JobDetailPage /> },
           { path: 'resumes', element: <ResumesPage /> },
