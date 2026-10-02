@@ -7,6 +7,7 @@ from typing import Any
 from sqlalchemy import ColumnElement, Select, func, or_, select
 from sqlalchemy.dialects.postgresql import insert
 
+from app.models.analysis import JobAnalysis
 from app.models.enums import JobSource, JobStatus, JobVisibility, UserJobState
 from app.models.jobs import Job, JobSearchResult, JobSearchRun, SavedSearch, UserJob
 from app.repositories.base import BaseRepository, OwnedRepository
@@ -70,7 +71,12 @@ class JobFilters:
     q: str | None = None
     location: str | None = None
     remote_only: bool = False
-    sort: str = "posted"  # posted | found | company
+    sort: str = "posted"  # posted | found | company | score
+    min_score: int | None = None
+    # Scores count for sorting/filtering only when made with this (the active) resume version.
+    active_version_id: uuid.UUID | None = None
+    # Phase 9 batch scoring: only jobs without a score for the active resume.
+    unscored_only: bool = False
 
 
 class UserJobRepository(OwnedRepository[UserJob]):
@@ -93,7 +99,21 @@ class UserJobRepository(OwnedRepository[UserJob]):
         return created is not None
 
     def _filtered(self, filters: JobFilters) -> Select[UserJob, Job]:
-        query = select(UserJob, Job).join(Job, Job.id == UserJob.job_id).where(self._owned())
+        query = (
+            select(UserJob, Job)
+            .join(Job, Job.id == UserJob.job_id)
+            .outerjoin(
+                JobAnalysis,
+                (JobAnalysis.job_id == Job.id)
+                & (JobAnalysis.user_id == self.owner_id)
+                & (JobAnalysis.resume_version_id == filters.active_version_id),
+            )
+            .where(self._owned())
+        )
+        if filters.min_score is not None:
+            query = query.where(JobAnalysis.match_score >= filters.min_score)
+        if filters.unscored_only:
+            query = query.where(JobAnalysis.id.is_(None))
         if filters.state is None:
             query = query.where(UserJob.state.in_(OPEN_STATES))
         else:
@@ -126,6 +146,8 @@ class UserJobRepository(OwnedRepository[UserJob]):
             order = [UserJob.first_found_at.desc()]
         elif filters.sort == "company":
             order = [Job.company.asc(), Job.title.asc()]
+        elif filters.sort == "score":
+            order = [JobAnalysis.match_score.desc().nulls_last(), Job.posted_at.desc().nulls_last()]
         else:
             order = [Job.posted_at.desc().nulls_last(), UserJob.first_found_at.desc()]
         rows = await self.session.execute(

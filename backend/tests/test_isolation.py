@@ -9,10 +9,11 @@ from fastapi.testclient import TestClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.accounts import User
-from app.models.enums import DescriptionQuality, JobSource, ResumeKind
+from app.models.enums import AnalysisDecision, DescriptionQuality, JobSource, ResumeKind
 from app.models.jobs import Job, JobSearchRun, SavedSearch
 from app.models.resumes import Resume, ResumeAtsReport, ResumeVersion
 from app.models.system import Task
+from app.repositories.analyses import JobAnalysisRepository
 from app.repositories.jobs import (
     JobFilters,
     JobSearchRunRepository,
@@ -150,6 +151,56 @@ async def test_job_state_saved_searches_and_runs_are_private(session: AsyncSessi
     assert (
         await UserJobRepository(session, owner_id=alice.id).page(JobFilters(), limit=10, offset=0)
     )[1] == 1
+
+
+async def test_match_scores_are_private(session: AsyncSession) -> None:
+    """Phase 9. HTTP side: test_analysis.py::test_scores_are_private."""
+    alice, bob = await _two_users(session)
+    job = Job(
+        source=JobSource.JSEARCH,
+        external_id="x2",
+        title="Dev",
+        company="Acme",
+        description_quality=DescriptionQuality.COMPLETE,
+        dedupe_hash="h2",
+    )
+    resume = Resume(user_id=alice.id)
+    session.add_all([job, resume])
+    await session.flush()
+    version = ResumeVersion(
+        user_id=alice.id,
+        resume_id=resume.id,
+        version_no=1,
+        kind=ResumeKind.MASTER,
+        file_key="k",
+        file_name="cv.pdf",
+        mime_type="application/pdf",
+        file_size=1,
+    )
+    session.add(version)
+    await session.flush()
+    analysis = await JobAnalysisRepository(session, owner_id=alice.id).save(
+        {
+            "job_id": job.id,
+            "resume_version_id": version.id,
+            "component_scores": {},
+            "weights_used": {},
+            "match_score": 70,
+            "matched_skills": [],
+            "missing_skills": [],
+            "recommendations": [],
+            "red_flags": [],
+            "decision": AnalysisDecision.TAILOR,
+            "model": "m",
+            "prompt_version": "v",
+        }
+    )
+    await session.commit()
+
+    as_bob = JobAnalysisRepository(session, owner_id=bob.id)
+    assert await as_bob.get(analysis.id) is None
+    assert await as_bob.for_pair(job.id, version.id) is None
+    assert await as_bob.best_for_jobs([job.id], version.id) == {}
 
 
 def test_api_profile_and_settings_return_only_your_own(
