@@ -26,3 +26,10 @@ class ActorType(StrEnum):
     USER = "user"
     ADMIN = "admin"
     SYSTEM = "system"
+
+
+class NotificationSeverity(StrEnum):
+    INFO = "info"
+    SUCCESS = "success"
+    WARNING = "warning"
+    ERROR = "error"

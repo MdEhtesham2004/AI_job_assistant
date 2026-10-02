@@ -5,6 +5,7 @@ from pathlib import Path
 import pytest
 from alembic import command
 from alembic.config import Config
+from fakeredis.aioredis import FakeRedis
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from sqlalchemy import text
@@ -23,7 +24,7 @@ TEST_SECRET_KEY = "test-secret-key-for-automated-tests-only-0123456789"
 
 
 @pytest.fixture(scope="session")
-def settings() -> Settings:
+def settings(tmp_path_factory: pytest.TempPathFactory) -> Settings:
     base = Settings()  # reads backend/.env
     url = make_url(base.test_database_url)
     # Safety: the suite wipes this database — never run it against real data.
@@ -37,6 +38,13 @@ def settings() -> Settings:
         test_database_url=base.test_database_url,
         secret_key=TEST_SECRET_KEY,
         cookie_secure=False,  # TestClient talks plain http
+        # Phase 6: no real broker, storage in a temp folder, fake external services.
+        celery_enabled=False,
+        storage_local_path=str(tmp_path_factory.mktemp("storage")),
+        gotenberg_url="http://gotenberg.test",
+        ai_base_url="https://ai.test/v1",
+        ai_api_key="test-ai-key",
+        ai_model_default="test/model",
     )
 
 
@@ -71,7 +79,9 @@ def clean_tables(migrated_database: str) -> Iterator[None]:
 
 @pytest.fixture
 def app(settings: Settings, migrated_database: str) -> FastAPI:
-    return create_app(settings)
+    application = create_app(settings)
+    application.state.redis = FakeRedis(decode_responses=True)
+    return application
 
 
 @pytest.fixture

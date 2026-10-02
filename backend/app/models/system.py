@@ -1,13 +1,25 @@
 import uuid
 from datetime import datetime
+from decimal import Decimal
 from typing import Any
 
-from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Index, SmallInteger, Text, text
+from sqlalchemy import (
+    Boolean,
+    CheckConstraint,
+    DateTime,
+    ForeignKey,
+    Index,
+    Integer,
+    Numeric,
+    SmallInteger,
+    Text,
+    text,
+)
 from sqlalchemy.dialects.postgresql import INET, JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base, CreatedAtMixin, TimestampMixin, UUIDPrimaryKeyMixin, text_enum
-from app.models.enums import ActorType, TaskStatus
+from app.models.enums import ActorType, NotificationSeverity, TaskStatus
 
 
 class Task(UUIDPrimaryKeyMixin, TimestampMixin, Base):
@@ -70,3 +82,50 @@ class AuditLog(UUIDPrimaryKeyMixin, CreatedAtMixin, Base):
         Index("ix_audit_logs_entity_type_entity_id", "entity_type", "entity_id"),
         Index("ix_audit_logs_created_at", text("created_at DESC")),
     )
+
+
+class Notification(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+    """Phase 0 section 5.8 - in-app notifications (bell + list)."""
+
+    __tablename__ = "notifications"
+
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    type: Mapped[str] = mapped_column(Text, nullable=False)
+    title: Mapped[str] = mapped_column(Text, nullable=False)
+    body: Mapped[str | None] = mapped_column(Text)
+    link: Mapped[str | None] = mapped_column(Text)
+    severity: Mapped[NotificationSeverity] = mapped_column(
+        text_enum(NotificationSeverity, "notification_severity"),
+        nullable=False,
+        default=NotificationSeverity.INFO,
+        server_default=NotificationSeverity.INFO.value,
+    )
+    read_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    __table_args__ = (
+        Index("ix_notifications_user_id_read_at", "user_id", "read_at"),
+        Index("ix_notifications_user_id_created_at", "user_id", text("created_at DESC")),
+    )
+
+
+class AiCall(UUIDPrimaryKeyMixin, CreatedAtMixin, Base):
+    """Phase 0 section 5.8 - one row per LLM call (cost, latency, cache hits, budget)."""
+
+    __tablename__ = "ai_calls"
+
+    user_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    task_type: Mapped[str] = mapped_column(Text, nullable=False)
+    model: Mapped[str] = mapped_column(Text, nullable=False)
+    prompt_version: Mapped[str] = mapped_column(Text, nullable=False)
+    input_tokens: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    output_tokens: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    cost_usd: Mapped[Decimal] = mapped_column(Numeric(10, 6), nullable=False, default=Decimal(0))
+    latency_ms: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    cached: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    success: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+
+    __table_args__ = (Index("ix_ai_calls_user_id_created_at", "user_id", "created_at"),)

@@ -29,11 +29,44 @@ docker run -d --name ai-job-postgres -e POSTGRES_USER=app -e POSTGRES_PASSWORD=<
 docker exec -it ai-job-postgres psql -U app -d jobs -c "CREATE DATABASE jobs_test;"
 ```
 
+### Local services (Phase 6)
+
+```bash
+docker run -d --name ai-job-redis -p 6379:6379 --restart unless-stopped redis:7-alpine
+docker run -d --name ai-job-gotenberg -p 3000:3000 --restart unless-stopped gotenberg/gotenberg:8
+```
+
+Files are stored on disk in `backend/storage/` (git-ignored). MinIO is not used: its images are no longer published on Docker Hub.
+
 ## Run
 
 ```bash
 uv run uvicorn app.main:app --reload --port 8000
+# second terminal — background worker (Windows needs --pool=solo)
+uv run celery -A app.workers.celery_app worker --pool=solo -Q default,ai,pdf,email -l info
 ```
+
+## Background tasks (Phase 6)
+
+```text
+API: TaskService.create() → tasks row (queued) → commit → Celery "tasks.execute"(task_id)
+Worker: run_task() → running → handler → succeeded (result) | retry 10s/30s/90s | failed
+      → notification for the user
+Browser: polls GET /api/v1/tasks/{id}
+```
+
+- Handlers live in `app/workers/handlers/` and register with `@handler("type", "Title")`; add the type to `TASK_QUEUES` in `app/services/tasks.py`.
+- `RetryableTaskError` / `ExternalServiceError` → retried (max `TASK_MAX_RETRIES`, default 3); other errors fail at once.
+- Files produced by tasks are returned as short-lived signed links: `GET /api/v1/files/{token}` (no auth header; the token is the permission).
+- AI: `AiService.complete_json(...)` → budget check → `AiClient` (OpenAI-compatible, strict JSON schema, one repair retry, Redis cache) → row in `ai_calls` with tokens, cost (from OpenRouter) and latency.
+
+| Endpoint | Who | Purpose |
+|---|---|---|
+| `GET /api/v1/tasks`, `GET /api/v1/tasks/{id}` | user | your tasks / poll one |
+| `POST /api/v1/tasks/test-pdf` | user | diagnostic PDF |
+| `GET /api/v1/notifications`, `/unread-count`, `POST /{id}/read`, `POST /read-all` | user | in-app notifications |
+| `GET /api/v1/admin/system` | admin | health of API, DB, Redis, worker, storage, Gotenberg, AI |
+| `POST /api/v1/admin/system/test-failure`, `/test-ai` | admin | diagnostics |
 
 - Health (API + database + migration revision): http://localhost:8000/api/v1/health
 - API docs: http://localhost:8000/api/v1/docs
