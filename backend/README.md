@@ -68,6 +68,31 @@ Browser: polls GET /api/v1/tasks/{id}
 | `GET /api/v1/admin/system` | admin | health of API, DB, Redis, worker, storage, Gotenberg, AI |
 | `POST /api/v1/admin/system/test-failure`, `/test-ai` | admin | diagnostics |
 
+AI requests have one overall deadline (`AI_TIMEOUT_SECONDS`, default 120), an output cap (`AI_MAX_OUTPUT_TOKENS`), low reasoning effort and OpenRouter `provider.sort=throughput` (`AI_PROVIDER_SORT`): cheapest-first routing sent some strict-JSON calls to hosts that looped until the token limit.
+
+## Resumes (Phase 7)
+
+```text
+Upload → check type by bytes (PDF %PDF / DOCX word/document.xml), ≤ 5 MB → store file
+       → extract text (pypdf / python-docx; image-only files rejected) → new version
+       → task resume_parse (AI → structured JSON)
+Version → resume_ats (score, section scores, strengths, gaps, roles, suggestions)
+        → resume_improve (AI rewrite → grounding check → HTML template → Gotenberg PDF → new "improved" version)
+        → resume_linkedin (headline ≤ 220 + About, stored on the ATS report)
+```
+
+| Endpoint | Purpose |
+|---|---|
+| `GET /api/v1/resumes` | your resume and all versions (latest ATS score each) |
+| `POST /api/v1/resumes/upload` (multipart `file`) | new version; the first one becomes active; queues parsing |
+| `GET /api/v1/resumes/versions/{id}` | parsed content, latest ATS report, running tasks, signed file link |
+| `POST /api/v1/resumes/versions/{id}/activate` | make it the active resume |
+| `POST /api/v1/resumes/versions/{id}/parse` · `/ats` · `/improve` · `/linkedin-summary` | start an AI task (202 → `task_id`; a running task of the same type is returned instead of a duplicate) |
+
+- Nothing is deleted: every upload and every improved resume is a new version (`kind` master / improved; tailored arrives in Phase 10).
+- **No invented facts:** `services/resume_improve.ungrounded_facts()` rejects employers, titles, schools, degrees, skills, certifications and numbers that are not in the original; one retry with the problems listed, then the task fails and nothing is saved. Name, headline and contact details are always copied from the original.
+- Prompts are versioned in `app/prompts/resumes.py` (`resume_parse.v1`, `resume_ats.v1`, `resume_improve.v2`, `linkedin_summary.v1`); the version is stored on each AI call and report.
+
 - Health (API + database + migration revision): http://localhost:8000/api/v1/health
 - API docs: http://localhost:8000/api/v1/docs
 
@@ -136,15 +161,16 @@ app/
 │   └── v1/routes/       one module per resource
 ├── core/                config, logging, middleware (request id), errors, security (Argon2)
 ├── db/                  declarative base (naming convention, enum helper), engine/session
-├── models/              SQLAlchemy models: accounts (users), system (tasks, audit_logs)
+├── integrations/        storage, Gotenberg, AI client (Phase 6)
+├── models/              SQLAlchemy models: accounts, system (tasks, audit_logs, notifications, ai_calls), resumes
+├── prompts/             versioned AI prompts + their structured outputs (Phase 7)
 ├── repositories/        database access (no commits)
 ├── schemas/             Pydantic request/response models
-└── services/            business logic (health checks, admin seed)
-migrations/              Alembic environment + versions/0001_core.py
+├── services/            business logic
+└── workers/             Celery app, task runner, handlers/
+migrations/              Alembic environment + versions/0001_core.py … 0005_resumes.py
 tests/
 ```
-
-Further folders (`domain/`, `integrations/`, `workers/`) are added in the phases that need them.
 
 ## Error format
 

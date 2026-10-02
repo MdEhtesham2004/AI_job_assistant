@@ -5,6 +5,7 @@ invalid JSON, caches identical requests in Redis, and reports tokens, cost and l
 It never touches the database — `services/ai.py` records usage and enforces budgets.
 """
 
+import asyncio
 import hashlib
 import json
 from dataclasses import dataclass
@@ -131,27 +132,41 @@ class AiClient:
     async def _post(
         self, model: str, messages: list[Message], name: str, schema: dict[str, Any]
     ) -> dict[str, Any]:
-        payload = {
+        payload: dict[str, Any] = {
             "model": model,
             "messages": messages,
             "temperature": 0.2,
+            # A model stuck in a loop must not generate forever.
+            "max_tokens": self.settings.ai_max_output_tokens,
             "response_format": {
                 "type": "json_schema",
                 "json_schema": {"name": name, "strict": True, "schema": schema},
             },
             "usage": {"include": True},  # OpenRouter: report the real cost
         }
+        if self.settings.ai_reasoning_effort:
+            payload["reasoning"] = {"effort": self.settings.ai_reasoning_effort}
+        if self.settings.ai_provider_sort:
+            payload["provider"] = {"sort": self.settings.ai_provider_sort}
         headers = {
             "Authorization": f"Bearer {self.settings.ai_api_key}",
             "X-Title": self.settings.app_name,
         }
+        timeout = self.settings.ai_timeout_seconds
         try:
-            async with httpx.AsyncClient(timeout=self.settings.ai_timeout_seconds) as client:
+            # httpx timeouts apply per read; OpenRouter keeps slow responses alive with
+            # whitespace, so the whole request also gets one overall deadline.
+            async with asyncio.timeout(timeout), httpx.AsyncClient(timeout=timeout) as client:
                 response = await client.post(
                     f"{self.settings.ai_base_url.rstrip('/')}/chat/completions",
                     json=payload,
                     headers=headers,
                 )
+        except TimeoutError as exc:
+            raise ExternalServiceError(
+                f"The AI service did not answer within {timeout:.0f} seconds.",
+                details={"provider": "ai"},
+            ) from exc
         except httpx.HTTPError as exc:
             raise ExternalServiceError(
                 "The AI service is unreachable.", details={"provider": "ai"}

@@ -28,6 +28,18 @@ class ActorType(StrEnum):
     SYSTEM = "system"
 
 
+class ResumeKind(StrEnum):
+    MASTER = "master"
+    IMPROVED = "improved"
+    TAILORED = "tailored"
+
+
+class ParseStatus(StrEnum):
+    PENDING = "pending"
+    PARSED = "parsed"
+    FAILED = "failed"
+
+
 class NotificationSeverity(StrEnum):
     INFO = "info"
     SUCCESS = "success"
