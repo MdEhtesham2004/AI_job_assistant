@@ -1,11 +1,6 @@
 import { Download } from 'lucide-react'
 
-function formatBytes(bytes) {
-  if (!bytes) return ''
-  return bytes < 1024 * 1024
-    ? `${Math.round(bytes / 1024)} KB`
-    : `${(bytes / 1048576).toFixed(1)} MB`
-}
+import { formatBytes } from '@/lib/format'
 
 /** What a finished task produced: a file link, an AI answer, or an error. */
 export function TaskResult({ task }) {

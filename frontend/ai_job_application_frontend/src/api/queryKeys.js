@@ -13,6 +13,11 @@ export const queryKeys = {
     usersAll: () => ['admin', 'users'],
     userCounts: () => ['admin', 'users', 'counts'],
   },
+  resumes: {
+    all: () => ['resumes'],
+    overview: () => ['resumes', 'overview'],
+    version: (id) => ['resumes', 'version', id],
+  },
   tasks: {
     all: () => ['tasks'],
     list: (page) => ['tasks', 'list', page],

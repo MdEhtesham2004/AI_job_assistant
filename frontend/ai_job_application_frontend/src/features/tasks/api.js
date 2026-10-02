@@ -18,6 +18,10 @@ const TASK_LABELS = {
   test_pdf: 'Test PDF',
   test_failure: 'Failure test',
   ai_test: 'AI connection test',
+  resume_parse: 'Resume parsing',
+  resume_ats: 'ATS analysis',
+  resume_improve: 'Improved resume',
+  resume_linkedin: 'LinkedIn summary',
 }
 
 export function taskLabel(type) {
