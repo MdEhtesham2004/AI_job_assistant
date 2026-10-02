@@ -45,6 +45,9 @@ def settings(tmp_path_factory: pytest.TempPathFactory) -> Settings:
         ai_base_url="https://ai.test/v1",
         ai_api_key="test-ai-key",
         ai_model_default="test/model",
+        # Phase 8: never call the real JSearch from tests.
+        jsearch_api_key="test-jsearch-key",
+        jsearch_base_url="https://jsearch.test",
     )
 
 

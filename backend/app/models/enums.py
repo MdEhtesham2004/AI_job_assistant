@@ -40,6 +40,44 @@ class ParseStatus(StrEnum):
     FAILED = "failed"
 
 
+class JobSource(StrEnum):
+    JSEARCH = "jsearch"
+    MANUAL = "manual"
+    LEGACY_SHEET = "legacy_sheet"
+
+
+class JobVisibility(StrEnum):
+    PUBLIC = "public"
+    PRIVATE = "private"
+
+
+class DescriptionQuality(StrEnum):
+    COMPLETE = "complete"
+    PARTIAL = "partial"
+    MISSING = "missing"
+
+
+class JobStatus(StrEnum):
+    ACTIVE = "active"
+    EXPIRED = "expired"
+    DUPLICATE = "duplicate"
+
+
+class UserJobState(StrEnum):
+    NEW = "new"
+    SAVED = "saved"
+    ANALYZED = "analyzed"
+    SKIPPED = "skipped"
+    ARCHIVED = "archived"
+
+
+class SearchRunStatus(StrEnum):
+    QUEUED = "queued"
+    RUNNING = "running"
+    SUCCEEDED = "succeeded"
+    FAILED = "failed"
+
+
 class NotificationSeverity(StrEnum):
     INFO = "info"
     SUCCESS = "success"

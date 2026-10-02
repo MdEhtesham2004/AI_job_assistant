@@ -44,6 +44,8 @@ Files are stored on disk in `backend/storage/` (git-ignored). MinIO is not used:
 uv run uvicorn app.main:app --reload --port 8000
 # second terminal — background worker (Windows needs --pool=solo)
 uv run celery -A app.workers.celery_app worker --pool=solo -Q default,ai,pdf,email -l info
+# third terminal — scheduler for saved searches (exactly one beat process)
+uv run celery -A app.workers.celery_app beat -l info
 ```
 
 ## Background tasks (Phase 6)
@@ -92,6 +94,31 @@ Version → resume_ats (score, section scores, strengths, gaps, roles, suggestio
 - Nothing is deleted: every upload and every improved resume is a new version (`kind` master / improved; tailored arrives in Phase 10).
 - **No invented facts:** `services/resume_improve.ungrounded_facts()` rejects employers, titles, schools, degrees, skills, certifications and numbers that are not in the original; one retry with the problems listed, then the task fails and nothing is saved. Name, headline and contact details are always copied from the original.
 - Prompts are versioned in `app/prompts/resumes.py` (`resume_parse.v1`, `resume_ats.v1`, `resume_improve.v2`, `linkedin_summary.v1`); the version is stored on each AI call and report.
+
+## Jobs (Phase 8)
+
+```text
+POST /jobs/search → job_search_runs (queued) + task job_search
+Worker: JSearch (code, never the AI) → normalize → store in the shared `jobs` catalog
+        → dedupe → link to the user (`user_jobs`) → job_search_results (rank) → run succeeded
+Beat (every 5 min): saved searches whose cron time passed (user's time zone) → same task
+```
+
+- **Shared catalog:** a job is stored once (`jobs`, unique `source + external_id`); each user's state, notes and pasted description live in `user_jobs`.
+- **Dedupe:** same source + id → refreshed (`last_seen_at`); same company + title + city as an active job seen within 30 days → stored as `duplicate` and the user is linked to the original.
+- **Description quality:** `complete` (≥ 800 chars with responsibilities/requirements), `partial` (200–799), `missing`. Fix with `POST /jobs/{id}/fetch-description` (public page only: robots.txt, 10 s timeout, private addresses refused, JSON-LD `JobPosting` preferred) or by pasting (`PATCH /jobs/{id}` `description`, private to the user).
+- **Quota protection:** at most 5 active saved searches per user, at most one run per hour each; JSearch 401/403/429 fail at once (no retries), 5xx/network errors are retried.
+
+| Endpoint | Purpose |
+|---|---|
+| `POST /api/v1/jobs/search` | start a search → `{task_id, run_id}` |
+| `GET /api/v1/jobs/searches`, `/searches/{run_id}` | recent searches / one search with its jobs |
+| `GET /api/v1/jobs/suggested-roles` | `top_roles` of the active resume's ATS report + profile location |
+| `GET /api/v1/jobs?state=&source=&posted_within_days=&q=&location=&remote_only=&sort=&page=` | your jobs (default: new + saved + analyzed) |
+| `GET /api/v1/jobs/counts` | number per state |
+| `GET /api/v1/jobs/{id}`, `PATCH /api/v1/jobs/{id}` | detail; state (`new`/`saved`/`skipped`/`archived`), notes, pasted description |
+| `POST /api/v1/jobs/{id}/fetch-description` | read the public job page in the background |
+| `GET/POST /api/v1/saved-searches`, `PATCH/DELETE /{id}`, `POST /{id}/run` | saved searches (cron schedule, pause, run now) |
 
 - Health (API + database + migration revision): http://localhost:8000/api/v1/health
 - API docs: http://localhost:8000/api/v1/docs
@@ -161,14 +188,15 @@ app/
 │   └── v1/routes/       one module per resource
 ├── core/                config, logging, middleware (request id), errors, security (Argon2)
 ├── db/                  declarative base (naming convention, enum helper), engine/session
-├── integrations/        storage, Gotenberg, AI client (Phase 6)
-├── models/              SQLAlchemy models: accounts, system (tasks, audit_logs, notifications, ai_calls), resumes
+├── domain/              pure rules: job quality/dedupe/query, cron schedules (Phase 8)
+├── integrations/        storage, Gotenberg, AI client, JSearch, job page reader
+├── models/              SQLAlchemy models: accounts, system, resumes, jobs
 ├── prompts/             versioned AI prompts + their structured outputs (Phase 7)
 ├── repositories/        database access (no commits)
 ├── schemas/             Pydantic request/response models
 ├── services/            business logic
 └── workers/             Celery app, task runner, handlers/
-migrations/              Alembic environment + versions/0001_core.py … 0005_resumes.py
+migrations/              Alembic environment + versions/0001_core.py … 0006_jobs.py
 tests/
 ```
 

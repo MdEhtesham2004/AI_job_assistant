@@ -6,8 +6,10 @@ from app.api.v1.routes import (
     auth,
     files,
     health,
+    jobs,
     notifications,
     resumes,
+    saved_searches,
     tasks,
     users,
 )
@@ -17,6 +19,8 @@ api_router.include_router(health.router)
 api_router.include_router(auth.router)
 api_router.include_router(users.router)
 api_router.include_router(resumes.router)
+api_router.include_router(jobs.router)
+api_router.include_router(saved_searches.router)
 api_router.include_router(tasks.router)
 api_router.include_router(notifications.router)
 api_router.include_router(files.router)

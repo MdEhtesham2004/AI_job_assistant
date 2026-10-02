@@ -2,6 +2,8 @@
 
 Run a worker (Windows needs the solo pool):
     uv run celery -A app.workers.celery_app worker --pool=solo -Q default,ai,pdf,email -l info
+Run the scheduler (saved searches; exactly one beat process):
+    uv run celery -A app.workers.celery_app beat -l info
 """
 
 from celery import Celery
@@ -19,5 +21,12 @@ celery_app.conf.update(
     task_ignore_result=True,
     broker_connection_retry_on_startup=True,
     timezone="UTC",
-    beat_schedule={},  # scheduled jobs arrive with saved searches (Phase 8) and replies (Phase 13)
+    beat_schedule={
+        # Phase 8: start saved searches whose cron time has passed (in the user's time zone).
+        "saved-searches-due": {
+            "task": "tasks.dispatch_saved_searches",
+            "schedule": 300.0,
+            "options": {"queue": "default", "expires": 290},
+        },
+    },
 )

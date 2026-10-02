@@ -1,6 +1,7 @@
 """Fakes for external services (Phase 6)."""
 
 import json
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -9,6 +10,7 @@ from fakeredis.aioredis import FakeRedis
 
 from app.core.config import Settings
 from app.core.errors import ExternalServiceError
+from app.domain.jobs import JobQuery, NormalizedJob
 from app.integrations.ai import AiClient
 from app.integrations.storage import LocalStorage
 from app.workers.runner import Services
@@ -30,6 +32,46 @@ class FakeGotenberg:
     async def check(self) -> None:
         if self.fail:
             raise RuntimeError("down")
+
+
+LONG_JD = (
+    "Responsibilities: build and ship React Native features for our mobile apps. "
+    "Requirements: 3+ years of experience with React Native, TypeScript and Redux. " * 6
+)
+
+
+def make_job(n: int, **overrides: Any) -> NormalizedJob:
+    """A normalized JSearch result; `n` makes ids and titles unique."""
+    values: dict[str, Any] = {
+        "source": "jsearch",
+        "external_id": f"jsearch-{n}",
+        "title": f"React Native Developer {n}",
+        "company": f"Company {n}",
+        "location": "Hyderabad, Telangana, IN",
+        "city": "Hyderabad",
+        "country": "IN",
+        "description": LONG_JD,
+        "apply_url": f"https://jobs.example.com/{n}",
+        "posted_at": datetime.now(UTC) - timedelta(days=n),
+        "raw": {"job_id": f"jsearch-{n}"},
+    }
+    values.update(overrides)
+    return NormalizedJob(**values)
+
+
+class FakeJobSource:
+    name = "jsearch"
+
+    def __init__(self, jobs: list[NormalizedJob] | None = None, *, error: Exception | None = None):
+        self.jobs = jobs or []
+        self.error = error
+        self.queries: list[JobQuery] = []
+
+    async def search(self, query: JobQuery) -> list[NormalizedJob]:
+        self.queries.append(query)
+        if self.error:
+            raise self.error
+        return list(self.jobs)
 
 
 def fake_services(settings: Settings, tmp_path: Path, **overrides: Any) -> Services:

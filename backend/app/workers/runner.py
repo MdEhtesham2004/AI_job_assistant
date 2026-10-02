@@ -19,8 +19,10 @@ from app.core.config import Settings
 from app.core.errors import AppError, ExternalServiceError
 from app.core.redis import create_redis
 from app.db.session import create_engine, create_session_factory
+from app.domain.jobs import JobSource
 from app.integrations.ai import AiClient
 from app.integrations.gotenberg import GotenbergClient
+from app.integrations.jsearch import JSearchSource
 from app.integrations.storage import Storage, create_storage
 from app.models.enums import NotificationSeverity, TaskStatus
 from app.models.system import Task
@@ -43,6 +45,7 @@ class Services:
     gotenberg: GotenbergClient
     ai: AiClient
     redis: Redis | None = None
+    job_source: JobSource | None = None  # None → JSearch
 
     @classmethod
     def from_settings(cls, settings: Settings) -> "Services":
@@ -55,12 +58,18 @@ class Services:
             redis=redis,
         )
 
+    @property
+    def jobs(self) -> JobSource:
+        return self.job_source or JSearchSource(self.settings)
+
 
 @dataclass
 class TaskContext:
     task: Task
     session: AsyncSession
     services: Services
+    # A handler can turn off the generic "… finished" notification and send its own.
+    notify_on_success: bool = True
     _progress_log: list[int] = field(default_factory=list)
 
     @property
@@ -149,7 +158,8 @@ async def _run(
         func = HANDLERS.get(task.type)
         if func is None:
             raise ValueError(f"No handler for task type {task.type!r}")
-        result = await func(TaskContext(task=task, session=session, services=services))
+        ctx = TaskContext(task=task, session=session, services=services)
+        result = await func(ctx)
     except (RetryableTaskError, ExternalServiceError) as exc:
         message = exc.message if isinstance(exc, AppError) else str(exc)
         if task.attempts <= settings.task_max_retries:
@@ -169,7 +179,7 @@ async def _run(
     task.progress = 100
     task.result = result
     task.finished_at = datetime.now(UTC)
-    if task.user_id is not None:
+    if task.user_id is not None and ctx.notify_on_success:
         notify(
             session,
             task.user_id,
