@@ -3,7 +3,7 @@ from collections.abc import Sequence
 from datetime import UTC, datetime
 from typing import Annotated, Literal
 
-from fastapi import APIRouter, Query, Request, Response, status
+from fastapi import APIRouter, Depends, Query, Request, Response, status
 
 from app.api.deps import ApprovedUser, DbSession
 from app.models.enums import JobSource, UserJobState
@@ -13,18 +13,26 @@ from app.repositories.jobs import JobFilters
 from app.schemas.common import Page
 from app.schemas.jobs import (
     ActiveJobTask,
+    AnalysisRead,
+    AnalyzeRequest,
+    AnalyzeStarted,
+    BatchStarted,
+    BatchSummary,
     JobCounts,
     JobDetail,
     JobSearchRequest,
     JobSearchStarted,
     JobSummary,
     JobUpdate,
+    ScanTextRequest,
+    ScanTextStarted,
     SearchResultJob,
     SearchRunDetail,
     SearchRunRead,
     SuggestedRoles,
 )
 from app.schemas.tasks import TaskCreated
+from app.services.analysis import AnalysisService
 from app.services.jobs import JobService, JobView, can_load_more, pages_loaded
 
 router = APIRouter(prefix="/jobs", tags=["jobs"])
@@ -50,6 +58,9 @@ def to_summary(view: JobView) -> JobSummary:
         description_quality=view.quality,
         state=user_job.state if user_job else None,
         first_found_at=user_job.first_found_at if user_job else None,
+        match_score=view.analysis.match_score if view.analysis else None,
+        decision=view.analysis.decision if view.analysis else None,
+        score_stale=view.score_stale,
     )
 
 
@@ -70,6 +81,7 @@ def to_detail(view: JobView, active: Sequence[Task] = ()) -> JobDetail:
             ActiveJobTask(id=t.id, type=t.type, status=t.status, progress=t.progress)
             for t in active
         ],
+        analysis=AnalysisRead.model_validate(view.analysis) if view.analysis else None,
     )
 
 
@@ -153,30 +165,41 @@ async def counts(request: Request, db: DbSession, user: ApprovedUser) -> JobCoun
     return JobCounts(**await service(request, db, user).counts())
 
 
-@router.get("", response_model=Page[JobSummary], summary="Your jobs, with filters and sorting")
-async def list_jobs(
-    request: Request,
-    db: DbSession,
-    user: ApprovedUser,
+def job_filters(
     state: UserJobState | None = None,
     source: JobSource | None = None,
     posted_within_days: Annotated[int | None, Query(ge=1, le=365)] = None,
     q: Annotated[str | None, Query(max_length=100)] = None,
     location: Annotated[str | None, Query(max_length=100)] = None,
     remote_only: bool = False,
-    sort: Literal["posted", "found", "company"] = "posted",
-    page: Annotated[int, Query(ge=1)] = 1,
-    page_size: Annotated[int, Query(ge=1, le=100)] = 20,
-) -> Page[JobSummary]:
-    filters = JobFilters(
+    min_score: Annotated[int | None, Query(ge=0, le=100)] = None,
+    sort: Literal["posted", "found", "company", "score"] = "posted",
+) -> JobFilters:
+    """Shared by the list, the CSV export and batch scoring: the same view everywhere."""
+    return JobFilters(
         state=state,
         source=source,
         posted_within_days=posted_within_days,
         q=q,
         location=location,
         remote_only=remote_only,
+        min_score=min_score,
         sort=sort,
     )
+
+
+Filters = Annotated[JobFilters, Depends(job_filters)]
+
+
+@router.get("", response_model=Page[JobSummary], summary="Your jobs, with filters and sorting")
+async def list_jobs(
+    request: Request,
+    db: DbSession,
+    user: ApprovedUser,
+    filters: Filters,
+    page: Annotated[int, Query(ge=1)] = 1,
+    page_size: Annotated[int, Query(ge=1, le=100)] = 20,
+) -> Page[JobSummary]:
     views, total = await service(request, db, user).list(filters, page=page, page_size=page_size)
     return Page(items=[to_summary(v) for v in views], total=total, page=page, page_size=page_size)
 
@@ -191,28 +214,14 @@ async def export_csv(
     request: Request,
     db: DbSession,
     user: ApprovedUser,
-    state: UserJobState | None = None,
-    source: JobSource | None = None,
-    posted_within_days: Annotated[int | None, Query(ge=1, le=365)] = None,
-    q: Annotated[str | None, Query(max_length=100)] = None,
-    location: Annotated[str | None, Query(max_length=100)] = None,
-    remote_only: bool = False,
-    sort: Literal["posted", "found", "company"] = "posted",
+    filters: Filters,
     include_description: bool = False,
 ) -> Response:
-    filters = JobFilters(
-        state=state,
-        source=source,
-        posted_within_days=posted_within_days,
-        q=q,
-        location=location,
-        remote_only=remote_only,
-        sort=sort,
-    )
     content = await service(request, db, user).export_csv(
         filters, include_description=include_description
     )
-    name = f"jobs-{state.value if state else 'inbox'}-{datetime.now(UTC):%Y-%m-%d}.csv"
+    label = filters.state.value if filters.state else "inbox"
+    name = f"jobs-{label}-{datetime.now(UTC):%Y-%m-%d}.csv"
     return Response(
         content=content,
         media_type="text/csv; charset=utf-8",
@@ -221,6 +230,80 @@ async def export_csv(
             "Cache-Control": "private, no-store",
         },
     )
+
+
+# ---------- Phase 9: match scores (on demand only) ----------
+
+
+def analysis_service(request: Request, db: DbSession, user: ApprovedUser) -> AnalysisService:
+    state = request.app.state
+    return AnalysisService(db, user.id, settings=state.settings, dispatcher=state.dispatcher)
+
+
+@router.get(
+    "/analysis-summary",
+    response_model=BatchSummary,
+    summary="How many jobs in this view still need a match score",
+)
+async def analysis_summary(
+    request: Request, db: DbSession, user: ApprovedUser, filters: Filters
+) -> BatchSummary:
+    _, plan = await analysis_service(request, db, user).plan_batch(filters)
+    return BatchSummary(
+        to_score=len(plan.job_ids),
+        already_scored=plan.already_scored,
+        no_description=plan.no_description,
+        over_limit=plan.over_limit,
+    )
+
+
+@router.post(
+    "/analyze-batch",
+    response_model=BatchStarted,
+    summary="Score every unscored job in this view (max 50 per click)",
+)
+async def analyze_batch(
+    request: Request, db: DbSession, user: ApprovedUser, filters: Filters
+) -> BatchStarted:
+    task, plan = await analysis_service(request, db, user).start_batch(filters)
+    return BatchStarted(
+        task_id=task.id if task else None,
+        to_score=len(plan.job_ids),
+        already_scored=plan.already_scored,
+        no_description=plan.no_description,
+        over_limit=plan.over_limit,
+    )
+
+
+@router.post(
+    "/scan-text",
+    response_model=ScanTextStarted,
+    status_code=status.HTTP_202_ACCEPTED,
+    summary="Score a pasted job description (saved as a private job)",
+)
+async def scan_text(
+    body: ScanTextRequest, request: Request, db: DbSession, user: ApprovedUser
+) -> ScanTextStarted:
+    job, task = await analysis_service(request, db, user).scan_text(
+        body.title, body.company, body.description
+    )
+    return ScanTextStarted(job_id=job.id, task_id=task.id)
+
+
+@router.post(
+    "/{job_id}/analyze",
+    response_model=AnalyzeStarted,
+    summary="Get a match score for this job against your active resume",
+)
+async def analyze(
+    job_id: uuid.UUID,
+    request: Request,
+    db: DbSession,
+    user: ApprovedUser,
+    body: AnalyzeRequest | None = None,
+) -> AnalyzeStarted:
+    task = await analysis_service(request, db, user).start(job_id, force=bool(body and body.force))
+    return AnalyzeStarted(task_id=task.id if task else None, cached=task is None)
 
 
 @router.get("/{job_id}", response_model=JobDetail, summary="One job with its description")

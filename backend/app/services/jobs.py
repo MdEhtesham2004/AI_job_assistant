@@ -2,16 +2,18 @@
 
 import uuid
 from collections.abc import Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import Settings
 from app.core.errors import ConflictError, NotFoundError
 from app.domain.jobs import classify_description
+from app.models.analysis import JobAnalysis
 from app.models.enums import DescriptionQuality, JobSource, SearchRunStatus, UserJobState
 from app.models.jobs import Job, JobSearchRun, UserJob
 from app.models.system import Task
+from app.repositories.analyses import JobAnalysisRepository
 from app.repositories.jobs import (
     JobFilters,
     JobRepository,
@@ -22,6 +24,7 @@ from app.repositories.profiles import ProfileRepository
 from app.repositories.resumes import ResumeAtsReportRepository, ResumeRepository
 from app.repositories.tasks import TaskRepository
 from app.schemas.jobs import MAX_PAGES_PER_SEARCH, JobSearchRequest, JobUpdate
+from app.services.analysis import active_version
 from app.services.job_export import to_csv
 from app.services.tasks import TaskDispatcher, TaskService
 
@@ -46,6 +49,15 @@ def can_load_more(run: JobSearchRun) -> bool:
 class JobView:
     job: Job
     user_job: UserJob | None
+    # Best match score: for the active resume, else an older one (then `score_stale`).
+    analysis: JobAnalysis | None = None
+    active_version_id: uuid.UUID | None = None
+
+    @property
+    def score_stale(self) -> bool:
+        return (
+            self.analysis is not None and self.analysis.resume_version_id != self.active_version_id
+        )
 
     @property
     def description(self) -> str | None:
@@ -130,7 +142,8 @@ class JobService:
         """The run and its jobs, each with `is_new` (added to your list by this search)."""
         run = await self._run(run_id)
         results = await self.runs.results(run.id)
-        return run, [(JobView(job, user_job), is_new) for job, user_job, is_new in results]
+        views = await self._scored([JobView(job, user_job) for job, user_job, _ in results])
+        return run, [(view, is_new) for view, (_, _, is_new) in zip(views, results, strict=True)]
 
     async def suggested_roles(self) -> tuple[list[str], str | None, str | None]:
         """Roles from the active resume's latest ATS report (Module 02 role suggestion)."""
@@ -150,16 +163,22 @@ class JobService:
 
     async def list(
         self, filters: JobFilters, *, page: int, page_size: int
-    ) -> tuple[list[JobView], int]:
+    ) -> tuple[Sequence[JobView], int]:
+        version_id = await self._active_version_id()
         rows, total = await self.user_jobs.page(
-            filters, limit=page_size, offset=(page - 1) * page_size
+            replace(filters, active_version_id=version_id),
+            limit=page_size,
+            offset=(page - 1) * page_size,
         )
-        return [JobView(job, user_job) for user_job, job in rows], total
+        return await self._scored([JobView(job, user_job) for user_job, job in rows]), total
 
     async def export_csv(self, filters: JobFilters, *, include_description: bool) -> str:
         """All jobs matching the filters (up to EXPORT_LIMIT) as CSV text."""
-        rows, _ = await self.user_jobs.page(filters, limit=EXPORT_LIMIT, offset=0)
-        views = [JobView(job, user_job) for user_job, job in rows]
+        version_id = await self._active_version_id()
+        rows, _ = await self.user_jobs.page(
+            replace(filters, active_version_id=version_id), limit=EXPORT_LIMIT, offset=0
+        )
+        views = await self._scored([JobView(job, user_job) for user_job, job in rows])
         return to_csv(
             (
                 {
@@ -174,13 +193,31 @@ class JobService:
                     "apply_url": v.job.apply_url,
                     "found_at": v.user_job.first_found_at if v.user_job else None,
                     "notes": v.user_job.notes if v.user_job else None,
-                    # match_score / matching_skills / missing_skills / scored_at: Phase 9
+                    "match_score": v.analysis.match_score if v.analysis else None,
+                    "matching_skills": v.analysis.matched_skills if v.analysis else None,
+                    "missing_skills": v.analysis.missing_skills if v.analysis else None,
+                    "scored_at": v.analysis.updated_at if v.analysis else None,
                     "description": v.description,
                 }
                 for v in views
             ),
             include_description=include_description,
         )
+
+    async def _active_version_id(self) -> uuid.UUID | None:
+        version = await active_version(self.session, self.user_id)
+        return version.id if version else None
+
+    async def _scored(self, views: Sequence[JobView]) -> Sequence[JobView]:
+        """Attach each job's best match score (Phase 9)."""
+        version_id = await self._active_version_id()
+        best = await JobAnalysisRepository(self.session, owner_id=self.user_id).best_for_jobs(
+            [view.job.id for view in views], version_id
+        )
+        return [
+            replace(view, analysis=best.get(view.job.id), active_version_id=version_id)
+            for view in views
+        ]
 
     async def counts(self) -> dict[str, int]:
         return await self.user_jobs.state_counts()
@@ -197,7 +234,8 @@ class JobService:
         active = await TaskRepository(self.session, owner_id=self.user_id).active_for(
             JOB_ENTITY, job.id
         )
-        return JobView(job, user_job), active
+        (view,) = await self._scored([JobView(job, user_job)])
+        return view, active
 
     async def update(self, job_id: uuid.UUID, changes: JobUpdate) -> JobView:
         job = await self._visible(job_id)
@@ -213,7 +251,8 @@ class JobService:
             user_job.description_override = (changes.description or "").strip() or None
         await self.session.commit()
         await self.session.refresh(user_job)
-        return JobView(job, user_job)
+        (view,) = await self._scored([JobView(job, user_job)])
+        return view
 
     async def start_fetch_description(self, job_id: uuid.UUID) -> Task:
         job = await self._visible(job_id)

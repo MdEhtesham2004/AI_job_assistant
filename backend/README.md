@@ -120,6 +120,33 @@ Beat (every 5 min): saved searches whose cron time passed (user's time zone) →
 | `POST /api/v1/jobs/{id}/fetch-description` | read the public job page in the background |
 | `GET/POST /api/v1/saved-searches`, `PATCH/DELETE /{id}`, `POST /{id}/run` | saved searches (cron schedule, pause, run now) |
 
+## Match scores (Phase 9)
+
+**On demand only** (admin decision): nothing is scored after a search. The user clicks "Get match score" (one job), "Score all …" (unscored jobs in the current view, max 50 per click) or uses Scan.
+
+```text
+POST /jobs/{id}/analyze → cached? return at once : task job_analyze
+Worker: active parsed resume + job description (pasted one wins) → AI component scores
+        (skills, experience, technology, education, location) → backend: weighted score
+        (user's weights) + decision (user's thresholds) → job_analyses (one per job + resume version)
+```
+
+- The AI never computes the total: `domain/scoring.py` does (deterministic). Skill lists are grounded: "matched" must appear in the resume, "missing" in the job text.
+- A new active resume version makes old scores `score_stale` (shown, but not used for sort / minimum-score filters) until rescored.
+- Jobs without a usable description cannot be scored (`DESCRIPTION_MISSING`); partial descriptions add a red flag.
+- Batch scoring stops at the monthly AI budget and keeps what is done. Prompt `job_match.v2` (v1 scored far too low — no scale).
+- Cost measured live: ≈ $0.0007 per job, 3–4 s.
+
+| Endpoint | Purpose |
+|---|---|
+| `POST /api/v1/jobs/{id}/analyze` (`{"force": true}` to rescore) | score one job → `{task_id, cached}` |
+| `GET /api/v1/jobs/analysis-summary?…filters` | how many jobs in this view still need a score |
+| `POST /api/v1/jobs/analyze-batch?…filters` | score the unscored jobs of this view |
+| `POST /api/v1/jobs/scan-text` | score a pasted job description (saved as a private job) |
+| `GET /api/v1/jobs?sort=score&min_score=65` | sort / filter by score |
+
+The CSV export fills *Match score, Matching skills, Missing skills, Scored*.
+
 - Health (API + database + migration revision): http://localhost:8000/api/v1/health
 - API docs: http://localhost:8000/api/v1/docs
 
@@ -196,7 +223,7 @@ app/
 ├── schemas/             Pydantic request/response models
 ├── services/            business logic
 └── workers/             Celery app, task runner, handlers/
-migrations/              Alembic environment + versions/0001_core.py … 0006_jobs.py
+migrations/              Alembic environment + versions/0001_core.py … 0008_job_analyses.py
 tests/
 ```
 

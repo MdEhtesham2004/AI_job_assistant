@@ -7,6 +7,7 @@ from pydantic import BaseModel, Field, field_validator
 
 from app.domain.jobs import Experience
 from app.models.enums import (
+    AnalysisDecision,
     DescriptionQuality,
     JobSource,
     SearchRunStatus,
@@ -63,6 +64,30 @@ class JobSummary(BaseModel):
     description_quality: DescriptionQuality
     state: UserJobState | None
     first_found_at: datetime | None
+    # Phase 9 (on demand): None until the user asks for a score.
+    match_score: int | None = None
+    decision: AnalysisDecision | None = None
+    score_stale: bool = False  # made with an older resume version
+
+
+class AnalysisRead(BaseModel):
+    model_config = {"from_attributes": True}
+
+    id: uuid.UUID
+    resume_version_id: uuid.UUID
+    match_score: int
+    component_scores: dict[str, int]
+    weights_used: dict[str, int]
+    matched_skills: list[str]
+    missing_skills: list[str]
+    recommendations: list[str]
+    red_flags: list[str]
+    seniority_fit: str | None
+    decision: AnalysisDecision
+    model: str
+    prompt_version: str
+    created_at: datetime
+    updated_at: datetime
 
 
 class ActiveJobTask(BaseModel):
@@ -83,6 +108,40 @@ class JobDetail(JobSummary):
     first_seen_at: datetime
     last_seen_at: datetime
     active_tasks: list[ActiveJobTask]
+    analysis: AnalysisRead | None = None
+
+
+class AnalyzeRequest(BaseModel):
+    force: bool = False  # score again even if a score for the active resume exists
+
+
+class AnalyzeStarted(BaseModel):
+    task_id: uuid.UUID | None  # None: already scored (cached), nothing to do
+    cached: bool
+
+
+class BatchSummary(BaseModel):
+    """What "Score all" would do for the current view."""
+
+    to_score: int
+    already_scored: int
+    no_description: int
+    over_limit: int  # beyond the per-click limit; run it again afterwards
+
+
+class BatchStarted(BatchSummary):
+    task_id: uuid.UUID | None
+
+
+class ScanTextRequest(BaseModel):
+    title: str = Field(default="Pasted job", min_length=1, max_length=200)
+    company: str = Field(default="Unknown company", min_length=1, max_length=200)
+    description: str = Field(min_length=200, max_length=50_000)
+
+
+class ScanTextStarted(BaseModel):
+    job_id: uuid.UUID
+    task_id: uuid.UUID
 
 
 class JobUpdate(BaseModel):

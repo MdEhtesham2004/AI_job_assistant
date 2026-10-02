@@ -78,6 +78,12 @@ class SearchRunStatus(StrEnum):
     FAILED = "failed"
 
 
+class AnalysisDecision(StrEnum):
+    USE_MASTER = "use_master"
+    TAILOR = "tailor"
+    SKIP = "skip"
+
+
 class NotificationSeverity(StrEnum):
     INFO = "info"
     SUCCESS = "success"
