@@ -5,6 +5,7 @@ import { NavLink, Outlet } from 'react-router'
 import { useAuth } from '@/auth/useAuth'
 import { Button } from '@/components/ui/button'
 import { useUserCounts } from '@/features/admin/hooks'
+import { NotificationBell } from '@/features/notifications/NotificationBell'
 import { cn } from '@/lib/utils'
 import { useTheme } from '@/theme/useTheme'
 
@@ -113,6 +114,7 @@ export function AppLayout() {
             >
               {theme === 'dark' ? <Sun /> : <Moon />}
             </Button>
+            <NotificationBell />
             <UserMenu />
           </div>
         </header>

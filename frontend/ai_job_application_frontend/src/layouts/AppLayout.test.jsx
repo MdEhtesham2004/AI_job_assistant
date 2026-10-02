@@ -21,20 +21,32 @@ function renderLayout(user) {
 
 describe('AppLayout navigation', () => {
   it('hides the admin section from normal users', () => {
-    const fetchMock = mockApi({})
+    const fetchMock = mockApi({ 'GET /notifications/unread-count': { unread: 0 } })
     renderLayout(makeUser())
 
     const nav = screen.getAllByRole('navigation', { name: 'Main' })[0]
+    expect(nav).toHaveTextContent('Tasks')
     expect(nav).toHaveTextContent('Profile')
     expect(nav).not.toHaveTextContent('Users')
-    expect(fetchMock).not.toHaveBeenCalled() // no admin counts requested
+    const requested = fetchMock.mock.calls.map(([url]) => url)
+    expect(requested.some((url) => url.includes('/admin/'))).toBe(false)
   })
 
   it('shows admins the Users page with the pending count', async () => {
-    mockApi({ 'GET /admin/users/counts': COUNTS })
+    mockApi({
+      'GET /admin/users/counts': COUNTS,
+      'GET /notifications/unread-count': { unread: 0 },
+    })
     renderLayout(makeUser({ role: 'admin' }))
 
     expect(await screen.findByLabelText('2 pending')).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: /System Status/ })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /System/ })).toBeInTheDocument()
+  })
+
+  it('shows the unread notification count on the bell', async () => {
+    mockApi({ 'GET /notifications/unread-count': { unread: 3 } })
+    renderLayout(makeUser())
+
+    expect(await screen.findByLabelText('Notifications, 3 unread')).toBeInTheDocument()
   })
 })

@@ -11,6 +11,7 @@ import RegisterPage from '@/pages/RegisterPage'
 import RouteErrorPage from '@/pages/RouteErrorPage'
 import SettingsPage from '@/pages/SettingsPage'
 import SystemStatusPage from '@/pages/SystemStatusPage'
+import TasksPage from '@/pages/TasksPage'
 
 import { GuestOnly, RequireAdmin, RequireApproved, RequireAuth } from './guards'
 
@@ -50,6 +51,7 @@ export const routes = [
         ),
         children: [
           { index: true, element: <HomePage /> },
+          { path: 'tasks', element: <TasksPage /> },
           { path: 'profile', element: <ProfilePage /> },
           { path: 'settings', element: <SettingsPage /> },
           { path: 'account/password', element: <ChangePasswordPage /> },

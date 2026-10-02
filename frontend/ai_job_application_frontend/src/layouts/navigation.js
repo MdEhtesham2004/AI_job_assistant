@@ -1,4 +1,4 @@
-import { Activity, House, Settings, UserRound, Users } from 'lucide-react'
+import { Activity, House, ListChecks, Settings, UserRound, Users } from 'lucide-react'
 
 /**
  * Sidebar sections. Items are added as their phase is implemented (Phase 1 §8).
@@ -6,7 +6,10 @@ import { Activity, House, Settings, UserRound, Users } from 'lucide-react'
  */
 export const navigation = [
   {
-    items: [{ to: '/', label: 'Home', icon: House, end: true }],
+    items: [
+      { to: '/', label: 'Home', icon: House, end: true },
+      { to: '/tasks', label: 'Tasks', icon: ListChecks },
+    ],
   },
   {
     title: 'Account',
@@ -20,7 +23,7 @@ export const navigation = [
     adminOnly: true,
     items: [
       { to: '/admin/users', label: 'Users', icon: Users, badge: 'pendingUsers' },
-      { to: '/admin/system', label: 'System Status', icon: Activity },
+      { to: '/admin/system', label: 'System', icon: Activity },
     ],
   },
 ]
