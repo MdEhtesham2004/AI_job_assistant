@@ -1,5 +1,6 @@
 import {
   Activity,
+  Radar,
   BellRing,
   Briefcase,
   FileText,
@@ -28,6 +29,7 @@ export const navigation = [
     items: [
       { to: '/jobs/search', label: 'Find jobs', icon: Search },
       { to: '/jobs', label: 'Jobs', icon: Briefcase, end: true },
+      { to: '/jobs/scan', label: 'Scan', icon: Radar },
       { to: '/jobs/saved', label: 'Saved searches', icon: BellRing },
     ],
   },

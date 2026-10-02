@@ -18,6 +18,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Dialog } from '@/components/ui/dialog'
 import { Textarea } from '@/components/ui/textarea'
+import { AnalysisPanel } from '@/features/jobs/components/AnalysisPanel'
 import { JobStateBadge, QualityBadge } from '@/features/jobs/components/JobBadges'
 import { useFetchDescription, useJob, useUpdateJob } from '@/features/jobs/hooks'
 import { ProgressBar } from '@/features/tasks/components/TaskStatusBadge'
@@ -114,7 +115,7 @@ function JobDetail({ job }) {
         <span>{facts.join(' · ')}</span>
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,3fr)_minmax(0,1fr)]">
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
         <Card>
           <CardHeader>
             <div className="flex flex-wrap items-center justify-between gap-2">
@@ -139,6 +140,7 @@ function JobDetail({ job }) {
         </Card>
 
         <div className="flex flex-col gap-6">
+          <AnalysisPanel job={job} />
           <NotesCard job={job} />
           <Card>
             <CardHeader>

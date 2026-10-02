@@ -6,6 +6,7 @@ import { formatRelative } from '@/lib/format'
 
 import { useSetJobState } from '../hooks'
 import { JobStateBadge, QualityBadge } from './JobBadges'
+import { MatchScoreAction } from './MatchScore'
 
 /** One job in a list: title, company, place, freshness, state and quick actions. */
 export function JobRow({ job, label }) {
@@ -29,6 +30,7 @@ export function JobRow({ job, label }) {
           {label}
           <JobStateBadge state={job.state} />
           <QualityBadge quality={job.description_quality} />
+          <MatchScoreAction job={job} />
         </div>
       </div>
       <div className="flex shrink-0 items-center gap-1">

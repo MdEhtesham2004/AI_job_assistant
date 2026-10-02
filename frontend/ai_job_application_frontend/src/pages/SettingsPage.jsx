@@ -110,12 +110,7 @@ function SettingsForm({ settings }) {
             <p className="mt-1 text-xs text-destructive">{errors.score_weights.message}</p>
           )}
         </div>
-        <div className="sm:col-span-2">
-          <CheckboxField
-            label="Analyze new jobs automatically"
-            registration={register('auto_analyze_new_jobs')}
-          />
-        </div>
+        {/* Match scores are made only on demand (admin decision, Phase 9) — no auto-analysis. */}
       </Section>
 
       <Section

@@ -24,6 +24,8 @@ const TASK_LABELS = {
   resume_linkedin: 'LinkedIn summary',
   job_search: 'Job search',
   job_fetch_page: 'Job description fetch',
+  job_analyze: 'Match score',
+  job_analyze_batch: 'Batch match scoring',
 }
 
 export function taskLabel(type) {

@@ -29,6 +29,7 @@ export const queryKeys = {
     searchRun: (id) => ['jobs', 'search-run', id],
     suggestedRoles: () => ['jobs', 'suggested-roles'],
     saved: () => ['jobs', 'saved'],
+    analysisSummary: (filters) => ['jobs', 'analysis-summary', filters],
   },
   tasks: {
     all: () => ['tasks'],
