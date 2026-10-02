@@ -26,6 +26,7 @@ describe('AppLayout navigation', () => {
 
     const nav = screen.getAllByRole('navigation', { name: 'Main' })[0]
     expect(nav).toHaveTextContent('Tasks')
+    expect(nav).toHaveTextContent('Resumes')
     expect(nav).toHaveTextContent('Profile')
     expect(nav).not.toHaveTextContent('Users')
     const requested = fetchMock.mock.calls.map(([url]) => url)

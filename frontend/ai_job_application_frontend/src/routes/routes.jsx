@@ -8,6 +8,8 @@ import LoginPage from '@/pages/LoginPage'
 import NotFoundPage from '@/pages/NotFoundPage'
 import ProfilePage from '@/pages/ProfilePage'
 import RegisterPage from '@/pages/RegisterPage'
+import ResumesPage from '@/pages/ResumesPage'
+import ResumeVersionPage from '@/pages/ResumeVersionPage'
 import RouteErrorPage from '@/pages/RouteErrorPage'
 import SettingsPage from '@/pages/SettingsPage'
 import SystemStatusPage from '@/pages/SystemStatusPage'
@@ -51,6 +53,8 @@ export const routes = [
         ),
         children: [
           { index: true, element: <HomePage /> },
+          { path: 'resumes', element: <ResumesPage /> },
+          { path: 'resumes/:versionId', element: <ResumeVersionPage /> },
           { path: 'tasks', element: <TasksPage /> },
           { path: 'profile', element: <ProfilePage /> },
           { path: 'settings', element: <SettingsPage /> },
