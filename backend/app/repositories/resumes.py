@@ -38,6 +38,15 @@ class ResumeVersionRepository(OwnedRepository[ResumeVersion]):
         )
         return rows.all()
 
+    async def latest_tailored(self, job_id: uuid.UUID) -> ResumeVersion | None:
+        result: ResumeVersion | None = await self.session.scalar(
+            self.scoped()
+            .where(ResumeVersion.job_id == job_id)
+            .order_by(ResumeVersion.version_no.desc())
+            .limit(1)
+        )
+        return result
+
     async def next_version_no(self, resume_id: uuid.UUID) -> int:
         current = await self.session.scalar(
             select(func.max(ResumeVersion.version_no)).where(

@@ -147,6 +147,32 @@ Worker: active parsed resume + job description (pasted one wins) → AI componen
 
 The CSV export fills *Match score, Matching skills, Missing skills, Scored*.
 
+## Tailored resumes & cover letters (Phase 10)
+
+```text
+POST /jobs/{id}/tailored-resume → task resume_tailor:
+  active resume (parsed) + job text + match analysis hints → AI (structured resume)
+  → grounding check (no new employers/titles/schools/skills/numbers, one retry)
+  → name/headline/contact copied from the original, "missing" skills stripped
+  → HTML template → Gotenberg PDF → resume_versions (kind = tailored, job_id)
+POST /jobs/{id}/cover-letter {contact_name?} → task cover_letter:
+  tailored resume for this job if any, else the active one → AI (3-4 paragraphs)
+  → checks: placeholders, numbers, skills the analysis says you lack, company + role named,
+    120-450 words (one retry) → "Dear …," + body + "Sincerely" → PDF → cover_letters
+```
+
+- User edits are saved even when the checks object; the warnings are returned with the documents (`GET /jobs/{id}/documents`) and shown in the UI.
+- Prompts `resume_tailor.v1`, `cover_letter.v2` (v1 claimed "led", CI, agile, APIs — not in the resume).
+- Cost measured live: ≈ $0.0003–0.0007 per document, 3–4 s.
+
+| Endpoint | Purpose |
+|---|---|
+| `GET /api/v1/jobs/{id}/documents` | latest tailored resume (+ the master it came from) and cover letter, warnings, running tasks |
+| `POST /api/v1/jobs/{id}/tailored-resume` | generate a tailored resume (new version) |
+| `POST /api/v1/jobs/{id}/cover-letter` | generate a cover letter (`contact_name` optional) |
+| `PUT /api/v1/resumes/versions/{id}/content` | edit a tailored resume (structured) → new PDF |
+| `PATCH /api/v1/cover-letters/{id}` | edit text and/or `status` (`draft`/`final`) → new PDF |
+
 - Health (API + database + migration revision): http://localhost:8000/api/v1/health
 - API docs: http://localhost:8000/api/v1/docs
 
@@ -223,7 +249,7 @@ app/
 ├── schemas/             Pydantic request/response models
 ├── services/            business logic
 └── workers/             Celery app, task runner, handlers/
-migrations/              Alembic environment + versions/0001_core.py … 0008_job_analyses.py
+migrations/              Alembic environment + versions/0001_core.py … 0009_cover_letters.py
 tests/
 ```
 

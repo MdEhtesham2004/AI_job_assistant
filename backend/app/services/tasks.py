@@ -25,6 +25,8 @@ TASK_QUEUES: dict[str, str] = {
     "job_fetch_page": "default",
     "job_analyze": "ai",
     "job_analyze_batch": "ai",
+    "resume_tailor": "ai",
+    "cover_letter": "ai",
 }
 
 

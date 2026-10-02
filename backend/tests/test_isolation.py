@@ -9,11 +9,13 @@ from fastapi.testclient import TestClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.accounts import User
+from app.models.documents import CoverLetter
 from app.models.enums import AnalysisDecision, DescriptionQuality, JobSource, ResumeKind
 from app.models.jobs import Job, JobSearchRun, SavedSearch
 from app.models.resumes import Resume, ResumeAtsReport, ResumeVersion
 from app.models.system import Task
 from app.repositories.analyses import JobAnalysisRepository
+from app.repositories.documents import CoverLetterRepository
 from app.repositories.jobs import (
     JobFilters,
     JobSearchRunRepository,
@@ -201,6 +203,52 @@ async def test_match_scores_are_private(session: AsyncSession) -> None:
     assert await as_bob.get(analysis.id) is None
     assert await as_bob.for_pair(job.id, version.id) is None
     assert await as_bob.best_for_jobs([job.id], version.id) == {}
+
+
+async def test_cover_letters_and_tailored_versions_are_private(session: AsyncSession) -> None:
+    """Phase 10. HTTP side: test_documents.py::test_documents_are_private."""
+    alice, bob = await _two_users(session)
+    job = Job(
+        source=JobSource.JSEARCH,
+        external_id="x3",
+        title="Dev",
+        company="Acme",
+        description_quality=DescriptionQuality.COMPLETE,
+        dedupe_hash="h3",
+    )
+    resume = Resume(user_id=alice.id)
+    session.add_all([job, resume])
+    await session.flush()
+    tailored = ResumeVersion(
+        user_id=alice.id,
+        resume_id=resume.id,
+        version_no=1,
+        kind=ResumeKind.TAILORED,
+        job_id=job.id,
+        file_key="k",
+        file_name="t.pdf",
+        mime_type="application/pdf",
+        file_size=1,
+    )
+    session.add(tailored)
+    await session.flush()
+    letter = await CoverLetterRepository(session, owner_id=alice.id).add(
+        CoverLetter(
+            job_id=job.id,
+            resume_version_id=tailored.id,
+            content_md="Dear…",
+            model="m",
+            prompt_version="v",
+        )
+    )
+    await session.commit()
+
+    assert await CoverLetterRepository(session, owner_id=bob.id).get(letter.id) is None
+    assert await CoverLetterRepository(session, owner_id=bob.id).latest_for_job(job.id) is None
+    assert await ResumeVersionRepository(session, owner_id=bob.id).latest_tailored(job.id) is None
+    assert (
+        await ResumeVersionRepository(session, owner_id=alice.id).latest_tailored(job.id)
+    ).id == tailored.id
 
 
 def test_api_profile_and_settings_return_only_your_own(
