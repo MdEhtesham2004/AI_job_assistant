@@ -2,7 +2,7 @@
 
 import asyncio
 from collections.abc import Awaitable, Callable
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from time import perf_counter
 from typing import Any
 
@@ -19,6 +19,9 @@ from app.services.health import HealthService
 
 logger = structlog.get_logger("app.system")
 CHECK_TIMEOUT = 4.0
+# Written by the Beat task every 5 minutes (workers/tasks.py).
+SCHEDULER_TICK_KEY = "scheduler:last_tick"
+SCHEDULER_STALE_AFTER = timedelta(minutes=11)
 
 
 async def _timed(check: Callable[[], Awaitable[dict[str, Any] | None]]) -> ServiceCheck:
@@ -79,6 +82,15 @@ class SystemStatusService:
             await self.gotenberg.check()
             return {}
 
+        async def scheduler_check() -> dict[str, Any]:
+            last = await self.redis.get(SCHEDULER_TICK_KEY)
+            if not last:
+                raise RuntimeError("Celery Beat has not run")
+            last_tick = datetime.fromisoformat(last)
+            if datetime.now(UTC) - last_tick > SCHEDULER_STALE_AFTER:
+                raise RuntimeError("Celery Beat stopped")
+            return {"last_tick": last_tick.isoformat()}
+
         services: dict[str, ServiceCheck] = {
             "api": ServiceCheck(status="ok", details={"version": self.settings.app_version}),
             "database": ServiceCheck(status=database.status, details=database.details),
@@ -99,6 +111,22 @@ class SystemStatusService:
                     },
                 )
                 if self.settings.ai_configured
+                else ServiceCheck(status="not_configured")
+            ),
+            "scheduler": (
+                await _timed(scheduler_check)
+                if self.settings.celery_enabled
+                else ServiceCheck(status="disabled")
+            ),
+            "jsearch": (
+                ServiceCheck(
+                    status="ok",
+                    details={
+                        "endpoint": self.settings.jsearch_search_path,
+                        "country": self.settings.jsearch_country,
+                    },
+                )
+                if self.settings.jsearch_configured
                 else ServiceCheck(status="not_configured")
             ),
         }

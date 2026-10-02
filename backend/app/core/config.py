@@ -77,6 +77,29 @@ class Settings(BaseSettings):
     # Resume text sent to the AI is cut to this many characters (cost control).
     resume_ai_max_chars: int = 20_000
 
+    # --- Job search (Phase 8) ---
+    jsearch_api_key: str = Field(
+        default="",
+        repr=False,
+        validation_alias=AliasChoices("JSEARCH_API_KEY", "RAPIDAPI_KEY"),
+    )
+    jsearch_base_url: str = "https://jsearch.p.rapidapi.com"
+    jsearch_search_path: str = "/search-v2"
+    jsearch_country: str = "in"
+    jsearch_num_pages: int = Field(default=1, ge=1, le=3)
+    jsearch_date_posted: Literal["all", "today", "3days", "week", "month"] = "week"
+    jsearch_timeout_seconds: float = 30.0
+    # Cross-source duplicates: same company + title + city seen within this many days.
+    job_dedupe_days: int = 30
+    # JSearch quota protection.
+    max_active_saved_searches: int = 5
+    saved_search_min_interval_minutes: int = 60
+    job_page_fetch_timeout_seconds: float = 10.0
+
+    @property
+    def jsearch_configured(self) -> bool:
+        return bool(self.jsearch_api_key)
+
     @property
     def ai_configured(self) -> bool:
         return bool(self.ai_api_key)

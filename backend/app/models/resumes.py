@@ -53,8 +53,10 @@ class ResumeVersion(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     derived_from_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("resume_versions.id", ondelete="SET NULL"), nullable=True
     )
-    # FK to jobs is added in Phase 8 together with the jobs table.
-    job_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
+    # Set for tailored resumes (Phase 10). Jobs are never deleted while a tailored resume uses them.
+    job_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("jobs.id", ondelete="RESTRICT"), nullable=True
+    )
     file_key: Mapped[str] = mapped_column(Text, nullable=False)
     file_name: Mapped[str] = mapped_column(Text, nullable=False)
     mime_type: Mapped[str] = mapped_column(Text, nullable=False)

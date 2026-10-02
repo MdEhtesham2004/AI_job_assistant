@@ -152,7 +152,19 @@ def test_admin_system_reports_every_service(
     body = client.get("/api/v1/admin/system", headers=admin).json()
 
     services = body["services"]
-    assert set(services) == {"api", "database", "redis", "worker", "storage", "gotenberg", "ai"}
+    assert set(services) == {
+        "api",
+        "database",
+        "redis",
+        "worker",
+        "storage",
+        "gotenberg",
+        "ai",
+        "scheduler",
+        "jsearch",
+    }
+    assert services["scheduler"]["status"] == "disabled"  # Celery off in tests
+    assert services["jsearch"]["status"] == "ok"
     assert services["database"]["status"] == "ok"
     assert services["redis"]["status"] == "ok"
     assert services["storage"]["status"] == "ok"

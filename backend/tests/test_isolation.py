@@ -9,9 +9,16 @@ from fastapi.testclient import TestClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.accounts import User
-from app.models.enums import ResumeKind
+from app.models.enums import DescriptionQuality, JobSource, ResumeKind
+from app.models.jobs import Job, JobSearchRun, SavedSearch
 from app.models.resumes import Resume, ResumeAtsReport, ResumeVersion
 from app.models.system import Task
+from app.repositories.jobs import (
+    JobFilters,
+    JobSearchRunRepository,
+    SavedSearchRepository,
+    UserJobRepository,
+)
 from app.repositories.profiles import ProfileRepository
 from app.repositories.resumes import (
     ResumeAtsReportRepository,
@@ -109,6 +116,40 @@ async def test_resumes_versions_and_reports_are_private(session: AsyncSession) -
     assert await bob_reports.latest_scores([version.id]) == {}
     alice_reports = ResumeAtsReportRepository(session, owner_id=alice.id)
     assert await alice_reports.latest_scores([version.id]) == {version.id: 70}
+
+
+async def test_job_state_saved_searches_and_runs_are_private(session: AsyncSession) -> None:
+    """Phase 8. Jobs are shared; everything about them per user is not.
+    HTTP side: test_jobs.py (…each_user_has_their_own_list, …saved_searches_are_private)."""
+    alice, bob = await _two_users(session)
+    job = Job(
+        source=JobSource.JSEARCH,
+        external_id="x1",
+        title="Dev",
+        company="Acme",
+        description_quality=DescriptionQuality.MISSING,
+        dedupe_hash="h",
+    )
+    session.add(job)
+    await session.flush()
+    await UserJobRepository(session, owner_id=alice.id).link(job.id)
+    saved = await SavedSearchRepository(session, owner_id=alice.id).add(
+        SavedSearch(name="s", keywords="React")
+    )
+    run = await JobSearchRunRepository(session, owner_id=alice.id).add(
+        JobSearchRun(source=JobSource.JSEARCH, query={})
+    )
+    await session.commit()
+
+    bob_jobs = UserJobRepository(session, owner_id=bob.id)
+    assert await bob_jobs.for_job(job.id) is None
+    rows, total = await bob_jobs.page(JobFilters(), limit=10, offset=0)
+    assert (list(rows), total) == ([], 0)
+    assert await SavedSearchRepository(session, owner_id=bob.id).get(saved.id) is None
+    assert await JobSearchRunRepository(session, owner_id=bob.id).get(run.id) is None
+    assert (
+        await UserJobRepository(session, owner_id=alice.id).page(JobFilters(), limit=10, offset=0)
+    )[1] == 1
 
 
 def test_api_profile_and_settings_return_only_your_own(
