@@ -39,6 +39,21 @@ export const queryKeys = {
     detail: (id) => ['applications', 'detail', id],
     forJob: (jobId) => ['applications', 'for-job', jobId],
   },
+  gmail: {
+    status: () => ['gmail', 'status'],
+  },
+  contacts: {
+    all: () => ['contacts'],
+    list: (filters) => ['contacts', 'list', filters],
+    counts: () => ['contacts', 'counts'],
+    blocked: () => ['contacts', 'blocked'],
+  },
+  emails: {
+    all: () => ['emails'],
+    outbox: (filters) => ['emails', 'outbox', filters],
+    summary: () => ['emails', 'summary'],
+    forApplication: (id) => ['emails', 'application', id],
+  },
   tasks: {
     all: () => ['tasks'],
     list: (page) => ['tasks', 'list', page],

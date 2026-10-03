@@ -5,6 +5,7 @@ import ApplicationDetailPage from '@/pages/ApplicationDetailPage'
 import ApplicationsPage from '@/pages/ApplicationsPage'
 import AwaitingApprovalPage from '@/pages/AwaitingApprovalPage'
 import ChangePasswordPage from '@/pages/ChangePasswordPage'
+import ContactsPage from '@/pages/ContactsPage'
 import CoverLetterPage from '@/pages/CoverLetterPage'
 import HomePage from '@/pages/HomePage'
 import JobDetailPage from '@/pages/JobDetailPage'
@@ -12,6 +13,7 @@ import JobSearchPage from '@/pages/JobSearchPage'
 import JobsPage from '@/pages/JobsPage'
 import LoginPage from '@/pages/LoginPage'
 import NotFoundPage from '@/pages/NotFoundPage'
+import OutboxPage from '@/pages/OutboxPage'
 import ProfilePage from '@/pages/ProfilePage'
 import RegisterPage from '@/pages/RegisterPage'
 import ResumesPage from '@/pages/ResumesPage'
@@ -73,6 +75,8 @@ export const routes = [
           { path: 'jobs/:jobId/cover-letter', element: <CoverLetterPage /> },
           { path: 'applications', element: <ApplicationsPage /> },
           { path: 'applications/:applicationId', element: <ApplicationDetailPage /> },
+          { path: 'contacts', element: <ContactsPage /> },
+          { path: 'outbox', element: <OutboxPage /> },
           { path: 'resumes', element: <ResumesPage /> },
           { path: 'resumes/:versionId', element: <ResumeVersionPage /> },
           { path: 'tasks', element: <TasksPage /> },

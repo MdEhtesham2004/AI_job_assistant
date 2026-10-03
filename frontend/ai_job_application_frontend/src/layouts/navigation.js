@@ -4,10 +4,12 @@ import {
   BellRing,
   Briefcase,
   ClipboardList,
+  Contact,
   FileText,
   House,
   ListChecks,
   Search,
+  Send,
   Settings,
   UserRound,
   Users,
@@ -33,6 +35,13 @@ export const navigation = [
       { to: '/jobs/scan', label: 'Scan', icon: Radar },
       { to: '/jobs/saved', label: 'Saved searches', icon: BellRing },
       { to: '/applications', label: 'Applications', icon: ClipboardList },
+    ],
+  },
+  {
+    title: 'Outreach',
+    items: [
+      { to: '/contacts', label: 'Contacts', icon: Contact },
+      { to: '/outbox', label: 'Outbox', icon: Send },
     ],
   },
   {

@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select } from '@/components/ui/select'
 import { useJobDocuments } from '@/features/jobs/hooks'
+import { useContacts } from '@/features/outreach/hooks'
 import { KIND_LABELS } from '@/features/resumes/api'
 import { useResumes } from '@/features/resumes/hooks'
 
@@ -70,11 +71,19 @@ function PrepareForm({ job }) {
         label: `v${v.version_no} · ${KIND_LABELS[v.kind]}${v.is_active ? ' (active)' : ''}`,
       })),
   ]
-  const [channel, setChannel] = useState(job.apply_url ? 'portal' : 'email')
+  // A LinkedIn hiring post asks for an email; other jobs usually have an apply link.
+  const [channel, setChannel] = useState(
+    job.source === 'linkedin_post' || !job.apply_url ? 'email' : 'portal',
+  )
   const [resumeId, setResumeId] = useState('')
   const [withLetter, setWithLetter] = useState(true)
   const [nextAction, setNextAction] = useState('')
   const chosenResume = resumeId || versions[0]?.id || ''
+  // Approved contacts, this job's first (e.g. the address of a LinkedIn hiring post).
+  const approved = useContacts({ approval: 'approved', page_size: 200 }).data?.items ?? []
+  const contacts = [...approved].sort((a, b) => (b.job?.id === job.id) - (a.job?.id === job.id))
+  const [contactId, setContactId] = useState('')
+  const chosenContact = contactId || contacts[0]?.id || ''
 
   return (
     <form
@@ -87,6 +96,7 @@ function PrepareForm({ job }) {
             channel,
             resume_version_id: chosenResume || null,
             cover_letter_id: withLetter && docs?.cover_letter ? docs.cover_letter.id : null,
+            contact_id: channel === 'email' && chosenContact ? chosenContact : null,
             next_action: nextAction || null,
           },
         })
@@ -140,9 +150,28 @@ function PrepareForm({ job }) {
         />
       </div>
       {channel === 'email' && (
-        <p className="text-xs text-muted-foreground">
-          Sending by email (with approval) arrives in the next phase.
-        </p>
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="app-contact">Send to</Label>
+          <Select
+            id="app-contact"
+            value={chosenContact}
+            onChange={(e) => setContactId(e.target.value)}
+          >
+            {contacts.length === 0 && <option value="">Choose later (no approved contacts)</option>}
+            {contacts.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.email}
+                {c.name ? ` — ${c.name}` : ''}
+              </option>
+            ))}
+          </Select>
+          <p className="text-xs text-muted-foreground">
+            You review and approve the email before Gmail sends it.{' '}
+            <Link to="/contacts" className="text-primary hover:underline">
+              Contacts
+            </Link>
+          </p>
+        </div>
       )}
       <Button type="submit" disabled={create.isPending}>
         Prepare application
