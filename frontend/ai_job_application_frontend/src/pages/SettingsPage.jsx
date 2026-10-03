@@ -1,7 +1,11 @@
 import { zodResolver } from '@hookform/resolvers/zod'
+import { useQueryClient } from '@tanstack/react-query'
+import { useEffect } from 'react'
 import { useForm, useWatch } from 'react-hook-form'
+import { useSearchParams } from 'react-router'
 import { toast } from 'sonner'
 
+import { queryKeys } from '@/api/queryKeys'
 import { CheckboxField } from '@/components/common/CheckboxField'
 import { FormError } from '@/components/common/FormError'
 import { FormField } from '@/components/common/FormField'
@@ -10,6 +14,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { useSettings, useUpdateSettings } from '@/features/account/hooks'
 import { WEIGHT_FIELDS, settingsSchema } from '@/features/account/schemas'
+import { GmailCard } from '@/features/outreach/components/GmailCard'
 import { applyServerErrors } from '@/lib/forms'
 import { cn } from '@/lib/utils'
 
@@ -148,6 +153,13 @@ function SettingsForm({ settings }) {
           registration={register('no_response_days', num)}
           error={errors.no_response_days}
         />
+        <div className="sm:col-span-2">
+          <CheckboxField
+            label="LinkedIn hiring posts"
+            description="Find recruiter emails in public LinkedIn hiring posts (via Apify) on the Contacts page. Every contact still needs your approval."
+            registration={register('linkedin_source_enabled')}
+          />
+        </div>
       </Section>
 
       <Section title="Automation" description="End-to-end pipeline options." usedFrom="Phase 13">
@@ -156,10 +168,6 @@ function SettingsForm({ settings }) {
             label="Enable automation"
             description="Prepare applications automatically; you still approve every email."
             registration={register('automation_enabled')}
-          />
-          <CheckboxField
-            label="Use LinkedIn hiring posts as a contact source"
-            registration={register('linkedin_source_enabled')}
           />
         </div>
         <FormField
@@ -196,11 +204,30 @@ function SettingsForm({ settings }) {
   )
 }
 
+/** Google sends the browser back here with ?gmail=connected|error — say so once. */
+function useGmailRedirectNotice() {
+  const [params, setParams] = useSearchParams()
+  const queryClient = useQueryClient()
+  const result = params.get('gmail')
+  useEffect(() => {
+    if (!result) return
+    if (result === 'connected') toast.success(`Gmail connected: ${params.get('account') ?? ''}`)
+    else toast.error(params.get('message') ?? 'Gmail was not connected.')
+    queryClient.invalidateQueries({ queryKey: queryKeys.gmail.status() })
+    setParams({}, { replace: true })
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once per redirect
+  }, [result])
+}
+
 export default function SettingsPage() {
   const settings = useSettings()
+  useGmailRedirectNotice()
   return (
     <>
       <PageHeader title="Settings" description="Your preferences. Saved per account." />
+      <div className="mb-6">
+        <GmailCard />
+      </div>
       {settings.isPending && <p className="text-sm text-muted-foreground">Loading…</p>}
       {settings.isError && <FormError message={settings.error.message} />}
       {settings.data && <SettingsForm settings={settings.data} />}

@@ -11,10 +11,12 @@ import { ApplicationStatusBadge } from '@/features/applications/components/Appli
 import { MoveButtons } from '@/features/applications/components/MoveButtons'
 import { useApplication, useUpdateApplication } from '@/features/applications/hooks'
 import { MatchScoreBadge } from '@/features/jobs/components/MatchScore'
+import { ApplicationEmailCard } from '@/features/outreach/components/ApplicationEmailCard'
 import { KIND_LABELS } from '@/features/resumes/api'
 import { formatDateTime } from '@/lib/format'
 
 const SOURCE_LABELS = { user: 'you', system: 'system', email_reply: 'email reply' }
+const EMAIL_STEPS = ['ready_to_apply', 'waiting_for_approval', 'approved', 'sending', 'failed']
 
 export default function ApplicationDetailPage() {
   const { applicationId } = useParams()
@@ -91,6 +93,12 @@ function Detail({ application }) {
                   <span className="font-medium">Mark as applied</span>.
                 </p>
               )}
+              {application.channel === 'email' && EMAIL_STEPS.includes(application.status) && (
+                <p className="text-sm text-muted-foreground">
+                  Write, review and approve the email below — it becomes{' '}
+                  <span className="font-medium">Applied</span> when Gmail has sent it.
+                </p>
+              )}
               <MoveButtons application={application} />
               <NextAction application={application} />
             </CardContent>
@@ -130,35 +138,44 @@ function Detail({ application }) {
           </Card>
         </div>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Timeline</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <ol className="relative space-y-4 border-l pl-5">
-              {[...application.history].reverse().map((entry) => (
-                <li key={entry.id}>
-                  <span className="absolute -left-[5px] mt-1.5 size-2.5 rounded-full bg-primary" />
-                  <p className="text-sm">
-                    <span className="font-medium">{STATUS_LABELS[entry.to_status]}</span>
-                    {entry.from_status && (
-                      <span className="text-muted-foreground">
-                        {' '}
-                        (from {STATUS_LABELS[entry.from_status]})
-                      </span>
-                    )}
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    {formatDateTime(entry.created_at)} · by {SOURCE_LABELS[entry.source]}
-                  </p>
-                  {entry.note && <p className="mt-1 text-sm">{entry.note}</p>}
-                </li>
-              ))}
-            </ol>
-          </CardContent>
-        </Card>
+        <div className="flex flex-col gap-6">
+          {application.channel === 'email' && <ApplicationEmailCard application={application} />}
+          <Timeline application={application} />
+        </div>
       </div>
     </>
+  )
+}
+
+function Timeline({ application }) {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Timeline</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <ol className="relative space-y-4 border-l pl-5">
+          {[...application.history].reverse().map((entry) => (
+            <li key={entry.id}>
+              <span className="absolute -left-[5px] mt-1.5 size-2.5 rounded-full bg-primary" />
+              <p className="text-sm">
+                <span className="font-medium">{STATUS_LABELS[entry.to_status]}</span>
+                {entry.from_status && (
+                  <span className="text-muted-foreground">
+                    {' '}
+                    (from {STATUS_LABELS[entry.from_status]})
+                  </span>
+                )}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                {formatDateTime(entry.created_at)} · by {SOURCE_LABELS[entry.source]}
+              </p>
+              {entry.note && <p className="mt-1 text-sm">{entry.note}</p>}
+            </li>
+          ))}
+        </ol>
+      </CardContent>
+    </Card>
   )
 }
 

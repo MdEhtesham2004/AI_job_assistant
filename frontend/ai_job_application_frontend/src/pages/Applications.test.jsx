@@ -239,6 +239,7 @@ describe('Prepare application on the job page', () => {
       channel: 'portal',
       resume_version_id: 'v2',
       cover_letter_id: 'c1',
+      contact_id: null, // portal: no recipient
       next_action: 'Apply by Friday',
     })
   })
