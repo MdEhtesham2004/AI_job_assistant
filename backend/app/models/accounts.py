@@ -15,7 +15,7 @@ from sqlalchemy import (
     Text,
     text,
 )
-from sqlalchemy.dialects.postgresql import CITEXT, INET, JSONB, UUID
+from sqlalchemy.dialects.postgresql import ARRAY, CITEXT, INET, JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base, TimestampMixin, UUIDPrimaryKeyMixin, text_enum
@@ -173,6 +173,26 @@ class UserSettings(TimestampMixin, Base):
     automation_min_score: Mapped[int] = mapped_column(
         SmallInteger, nullable=False, default=70, server_default=text("70")
     )
+    # Phase 13 pipeline: LinkedIn keywords searched on a schedule, capped per run.
+    automation_keywords: Mapped[list[str]] = mapped_column(
+        ARRAY(Text), nullable=False, default=list, server_default=text("'{}'")
+    )
+    automation_interval_hours: Mapped[int] = mapped_column(
+        SmallInteger, nullable=False, default=24, server_default=text("24")
+    )
+    automation_max_jobs: Mapped[int] = mapped_column(
+        SmallInteger, nullable=False, default=5, server_default=text("5")
+    )
+    automation_posted_limit: Mapped[str] = mapped_column(
+        Text, nullable=False, default="week", server_default="week"
+    )
+    automation_tailor: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=True, server_default=text("true")
+    )
+    automation_cover_letter: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=True, server_default=text("true")
+    )
+    automation_last_run_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     llm_models: Mapped[dict[str, str]] = mapped_column(
         JSONB, nullable=False, default=dict, server_default=text("'{}'::jsonb")
     )

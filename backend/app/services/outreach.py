@@ -33,7 +33,12 @@ from app.domain.outreach import (
     next_slot,
 )
 from app.integrations.ai import AiClient
-from app.integrations.gmail import GmailAuthError, GmailSendError, GmailUncertainError
+from app.integrations.gmail import (
+    GmailApi,
+    GmailAuthError,
+    GmailSendError,
+    GmailUncertainError,
+)
 from app.integrations.storage import Storage
 from app.models.applications import Application
 from app.models.documents import CoverLetter
@@ -58,6 +63,7 @@ from app.prompts import documents as document_prompts
 from app.prompts import outreach as prompts
 from app.prompts.outreach import EmailDraft
 from app.prompts.resumes import ParsedResume
+from app.repositories.analyses import JobAnalysisRepository
 from app.repositories.applications import ApplicationRepository
 from app.repositories.documents import CoverLetterRepository
 from app.repositories.jobs import UserJobRepository
@@ -74,7 +80,7 @@ from app.repositories.profiles import ProfileRepository, UserSettingsRepository
 from app.repositories.resumes import ResumeVersionRepository
 from app.repositories.tasks import TaskRepository
 from app.services.ai import AiService
-from app.services.analysis import effective_description
+from app.services.analysis import active_version, effective_description
 from app.services.applications import ApplicationService
 from app.services.contacts import known_company
 from app.services.cover_letters import body_of, problems
@@ -455,6 +461,12 @@ class EmailSender:
             return "The address cannot receive email."
         if contact.email != email.to_address:
             return "The contact's address changed — draft the email again."
+        if email.email_type is not EmailType.APPLICATION:
+            # A follow-up goes to the same person on purpose (no cooldown), but never after
+            # they answered.
+            if await self.emails.has_reply(email.application_id):
+                return "They replied in the meantime — the follow-up was not sent."
+            return None
         if cooldown_days:
             last = await self.emails.last_sent_to(email.to_address, exclude=email.id)
             if last is not None and last > now - timedelta(days=cooldown_days):
@@ -491,10 +503,12 @@ class EmailSender:
             await self.session.rollback()
             return SendOutcome("skipped", "already taken")
         await self.session.refresh(email)
-        application = await self._application(email)
-        self.apps.apply(
-            application, ApplicationStatus.SENDING, note=None, source=StatusChangeSource.SYSTEM
-        )
+        follow_up = email.email_type is not EmailType.APPLICATION
+        if not follow_up:  # a follow-up leaves the application status alone
+            application = await self._application(email)
+            self.apps.apply(
+                application, ApplicationStatus.SENDING, note=None, source=StatusChangeSource.SYSTEM
+            )
         await self.session.commit()
 
         reason = await self._checks(email, rules, cooldown_days, now)
@@ -521,6 +535,11 @@ class EmailSender:
                 return await self._fail(email, f"The attachment {item.file_name} is missing.")
             attachments.append(Attachment(item.file_name, item.mime_type, data))
         resume = await self._sender_name(email)
+        original = (
+            await self.emails.get(email.in_reply_to_id)
+            if follow_up and email.in_reply_to_id
+            else None
+        )
         mime, message_id = build_message(
             from_address=email.from_address,
             from_name=resume,
@@ -529,12 +548,13 @@ class EmailSender:
             body=email.body_text,
             attachments=attachments,
             idempotency=email.idempotency_key or "",
+            in_reply_to=original.rfc822_message_id if original else None,
         )
-        email.message_id_header = message_id  # saved first: reconciliation searches for it
+        email.message_id_header = message_id  # saved first: marks "Gmail was called"
         await self.session.commit()
 
         try:
-            sent = await gmail.send(mime)
+            sent = await gmail.send(mime, thread_id=original.gmail_thread_id if original else None)
         except GmailUncertainError:
             logger.warning("outreach.send_uncertain", email_id=str(email.id))
             return SendOutcome("uncertain", "Gmail did not answer; checking again shortly.")
@@ -543,7 +563,7 @@ class EmailSender:
             return await self._fail(email, exc.message)
         except GmailSendError as exc:
             return await self._fail(email, exc.message)
-        await self._mark_sent(email, sent.message_id, sent.thread_id)
+        await self._mark_sent(email, sent.message_id, sent.thread_id, gmail=gmail)
         return SendOutcome("sent", sent.message_id)
 
     async def _sender_name(self, email: Email) -> str | None:
@@ -556,13 +576,35 @@ class EmailSender:
                 return ParsedResume.model_validate(version.parsed).name or None
         return None
 
-    async def _mark_sent(self, email: Email, message_id: str, thread_id: str) -> None:
+    async def _mark_sent(
+        self, email: Email, message_id: str, thread_id: str, *, gmail: GmailApi | None = None
+    ) -> None:
         now = datetime.now(UTC)
         email.status = EmailStatus.SENT
         email.sent_at = now
         email.gmail_message_id, email.gmail_thread_id = message_id, thread_id
         email.error = None
+        if gmail is not None:
+            # Gmail sets its own Message-ID; follow-ups must reply to that one.
+            # Best effort only: the email IS sent — nothing here may stop us recording that.
+            try:
+                email.rfc822_message_id = await gmail.header(message_id, "Message-Id")
+            except Exception:
+                logger.warning("outreach.message_id_unavailable", email_id=str(email.id))
         application = await self._application(email)
+        if email.email_type is not EmailType.APPLICATION:
+            job = await self.session.get(Job, application.job_id)
+            notify(
+                self.session,
+                self.user_id,
+                type="email_sent",
+                title=f"Follow-up sent — {job.title if job else 'application'}",
+                body=f"Sent to {email.to_address} in the same conversation.",
+                link=f"/applications/{application.id}",
+                severity=NotificationSeverity.SUCCESS,
+            )
+            await self.session.commit()
+            return
         if application.status is ApplicationStatus.SENDING:
             self.apps.apply(
                 application,
@@ -604,7 +646,7 @@ class EmailSender:
             )
             return SendOutcome("uncertain", exc.message)
         if found is not None:
-            await self._mark_sent(email, found.message_id, found.thread_id)
+            await self._mark_sent(email, found.message_id, found.thread_id, gmail=gmail)
             return SendOutcome("sent", "found in Gmail")
         return await self._fail(email, "Gmail has no record of this email — it was not sent.")
 
@@ -646,6 +688,7 @@ class EmailView:
     contact: Contact | None
     attachments: Sequence[EmailAttachment]
     warnings: list[str] = field(default_factory=list)
+    match_score: int | None = None
 
 
 @dataclass(frozen=True)
@@ -823,12 +866,15 @@ class EmailService:
 
     # ---------- approve / reject / cancel / retry ----------
 
-    async def approve(self, email_id: uuid.UUID) -> Email:
+    async def approve(self, email_id: uuid.UUID, *, approve_contact: bool = False) -> Email:
+        """Approve → scheduled send. `approve_contact`: the approval queue shows the contact's
+        evidence next to the email, so one click may approve both (Phase 13)."""
         email = await self._email(email_id, for_update=True)
         if email.status in (EmailStatus.QUEUED, EmailStatus.SENDING, EmailStatus.SENT):
             return email  # approving twice changes nothing (and never sends twice)
         if email.status is not EmailStatus.DRAFT:
             raise ConflictError("Only drafts can be approved.", code="EMAIL_LOCKED")
+        follow_up = email.email_type is not EmailType.APPLICATION
         application = await self._application(email.application_id)
         account = await GmailAccountService(self.session, self.user_id, self.settings).connected()
         if account.account_email != email.from_address:
@@ -839,6 +885,16 @@ class EmailService:
         contact = await self.contacts.get(email.contact_id) if email.contact_id else None
         if contact is None or contact.email != email.to_address:
             raise ConflictError("Choose the recipient again.", code="CONTACT_REQUIRED")
+        if (
+            approve_contact
+            and contact.approval is ContactApproval.PENDING
+            and contact.verification is not ContactVerification.INVALID
+            and not await DoNotContactRepository(self.session, owner_id=self.user_id).blocks(
+                contact.email
+            )
+        ):
+            contact.approval = ContactApproval.APPROVED
+            contact.approved_at = datetime.now(UTC)
         if contact.approval is not ContactApproval.APPROVED:
             raise ConflictError(f"Approve {contact.email} first.", code="CONTACT_NOT_APPROVED")
         if contact.verification is ContactVerification.INVALID:
@@ -849,7 +905,11 @@ class EmailService:
             )
         now = datetime.now(UTC)
         rules, cooldown_days = await _rules(self.session, self.user_id, self.settings)
-        if cooldown_days:
+        if follow_up and await self.emails.has_reply(email.application_id):
+            raise ConflictError(
+                "They already replied — no follow-up needed.", code="FOLLOW_UP_NOT_NEEDED"
+            )
+        if cooldown_days and not follow_up:
             last = await self.emails.last_sent_to(email.to_address, exclude=email.id)
             if last is not None and last > now - timedelta(days=cooldown_days):
                 raise ConflictError(
@@ -873,12 +933,13 @@ class EmailService:
         email.approved_at = now
         email.scheduled_for = slot
         email.error = None
-        self.apps.apply(
-            application,
-            ApplicationStatus.APPROVED,
-            note=f"Email to {email.to_address} approved",
-            outbox=True,
-        )
+        if not follow_up:
+            self.apps.apply(
+                application,
+                ApplicationStatus.APPROVED,
+                note=f"Email to {email.to_address} approved",
+                outbox=True,
+            )
         await self.session.commit()
         if slot <= now + IMMEDIATE:
             await TaskService(self.session, self.user_id, self.dispatcher).create(
@@ -890,12 +951,14 @@ class EmailService:
         await self.session.refresh(email)
         return email
 
-    async def approve_batch(self, email_ids: Sequence[uuid.UUID]) -> BatchResult:
+    async def approve_batch(
+        self, email_ids: Sequence[uuid.UUID], *, approve_contacts: bool = False
+    ) -> BatchResult:
         approved: list[uuid.UUID] = []
         errors: dict[str, str] = {}
         for email_id in dict.fromkeys(email_ids):  # each once, in the given order
             try:
-                await self.approve(email_id)
+                await self.approve(email_id, approve_contact=approve_contacts)
                 approved.append(email_id)
             except AppError as exc:
                 await self.session.rollback()
@@ -971,6 +1034,10 @@ class EmailService:
             for c in [await self.contacts.get(e.contact_id) for e, _, _ in rows if e.contact_id]
             if c is not None
         }
+        version = await active_version(self.session, self.user_id)
+        scores = await JobAnalysisRepository(self.session, owner_id=self.user_id).best_for_jobs(
+            [j.id for _, _, j in rows], version.id if version else None
+        )
         return [
             EmailView(
                 e,
@@ -978,6 +1045,7 @@ class EmailService:
                 j,
                 contacts.get(e.contact_id) if e.contact_id else None,
                 attachments.get(e.id, []),
+                match_score=scores[j.id].match_score if j.id in scores else None,
             )
             for e, a, j in rows
         ], total

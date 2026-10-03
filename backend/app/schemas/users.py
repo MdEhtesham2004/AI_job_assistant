@@ -1,5 +1,5 @@
 from decimal import Decimal
-from typing import Annotated
+from typing import Annotated, Literal
 from zoneinfo import available_timezones
 
 from pydantic import (
@@ -101,6 +101,12 @@ class SettingsRead(BaseModel):
     linkedin_source_enabled: bool
     automation_enabled: bool
     automation_min_score: int
+    automation_keywords: list[str]
+    automation_interval_hours: int
+    automation_max_jobs: int
+    automation_posted_limit: str
+    automation_tailor: bool
+    automation_cover_letter: bool
     monthly_ai_budget_usd: Decimal
 
 
@@ -119,4 +125,25 @@ class SettingsUpdate(BaseModel):
     linkedin_source_enabled: bool | None = None
     automation_enabled: bool | None = None
     automation_min_score: Percent | None = None
+    automation_keywords: (
+        Annotated[list[Annotated[str, Field(min_length=2, max_length=60)]], Field(max_length=5)]
+        | None
+    ) = None
+    automation_interval_hours: Annotated[int, Field(ge=6, le=168)] | None = None
+    automation_max_jobs: Annotated[int, Field(ge=1, le=20)] | None = None
+    automation_posted_limit: Literal["24h", "week", "month"] | None = None
+    automation_tailor: bool | None = None
+    automation_cover_letter: bool | None = None
     monthly_ai_budget_usd: Annotated[Decimal, Field(ge=0, le=1000, decimal_places=2)] | None = None
+
+    @field_validator("automation_keywords")
+    @classmethod
+    def _clean_keywords(cls, value: list[str] | None) -> list[str] | None:
+        if value is None:
+            return None
+        seen: list[str] = []
+        for keyword in value:
+            clean = " ".join(keyword.replace('"', " ").split())
+            if clean and clean.lower() not in [s.lower() for s in seen]:
+                seen.append(clean)
+        return seen

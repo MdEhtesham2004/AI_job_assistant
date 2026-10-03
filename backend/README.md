@@ -220,6 +220,28 @@ application: ready_to_apply → waiting_for_approval → approved → sending �
 | `GET /api/v1/outbox?status=…` · `/outbox/summary` | drafts, scheduled, sent, failed · counts + limits |
 | `PUT /api/v1/emails/{id}` · `POST …/approve` · `/reject` · `/cancel` · `/retry` · `POST /emails/approve-batch` | edit draft · actions |
 
+## Replies & automation (Phase 13)
+
+Celery Beat runs `tasks.poll_replies` every 5 minutes. Automation has **no schedule**: it runs only from the Outbox ("Automate").
+
+- **Replies:** Gmail `history.list` since the stored `gmail_history_id` (first poll / expired id: read the tracked threads once). New messages in threads of sent applications are stored as inbound `emails`; our own mail (it carries `X-App-Idempotency-Key`) and the user's replies to others are skipped.
+  - **Bounce** (mailer-daemon / delivery-failure subject) → email `bounced`, contact `invalid`, application `failed` (no AI call).
+  - Otherwise AI `reply_classify.v1` → `reply_classifications`. Confidence ≥ 0.80 → status change with source `email_reply` (interview_invite → interview, info_request/other → responded, rejection → rejected, offer → offer, auto_reply → none) and the suggested next action; below → notification + "confirm" prompt (`POST /replies/{id}/confirm`).
+  - "Do not contact me" → sender on the do-not-contact list. Any reply cancels a pending follow-up.
+- **Follow-ups:** after `follow_up_days` without a reply, one `follow_up_1` draft (AI `follow_up.v1`) waits for approval; it is sent in the same Gmail thread (`threadId` + `In-Reply-To` = Gmail's real Message-ID, saved after each send) and never changes the application status.
+- **No response:** email applications still `applied` after `no_response_days` (counted from the last email) → `no_response`.
+- **Automation** — started by the user, at most `automation_max_jobs` per run, two modes:
+  - `saved` (always available, no Apify): jobs in the user's list (not skipped/archived) with an **approved** contact and no application → match score (reused if one exists for the active resume) → if ≥ `automation_min_score`: tailored resume (when the analysis says *tailor*) + cover letter → email application → AI draft → Outbox *Ready for approval*.
+  - `fetch` (Apify): **locked until an admin enables it** (`app_settings.automation_fetch_enabled`, Settings › Platform, audited). LinkedIn hiring posts for each keyword (≤ 5) → private jobs + pending contacts, then the same steps for those and the saved jobs. A pending contact is approved together with its email ("Approve contact & send"), with the post shown as evidence. Keywords that find no post are reported (`empty_keywords`).
+
+| Endpoint | Purpose |
+|---|---|
+| `GET /api/v1/automation` · `POST /automation/run {mode: saved\|fetch}` | ready saved jobs, fetch lock, last run · start (task `automation_run`) |
+| `GET/PATCH /api/v1/admin/platform` | admin: `automation_fetch_enabled` |
+| `GET /api/v1/applications/{id}/replies` | replies with their AI reading |
+| `POST /api/v1/replies/{id}/confirm` `{accept}` | confirm / dismiss an unsure reading |
+| `POST /api/v1/emails/{id}/approve?approve_contact=true` · `approve-batch {approve_contacts}` | approve a pending contact with its email |
+
 - Health (API + database + migration revision): http://localhost:8000/api/v1/health
 - API docs: http://localhost:8000/api/v1/docs
 

@@ -179,6 +179,15 @@ class EmailStatus(StrEnum):
     RECEIVED = "received"
 
 
+class ReplyCategory(StrEnum):
+    INTERVIEW_INVITE = "interview_invite"
+    INFO_REQUEST = "info_request"
+    REJECTION = "rejection"
+    OFFER = "offer"
+    AUTO_REPLY = "auto_reply"
+    OTHER = "other"
+
+
 class NotificationSeverity(StrEnum):
     INFO = "info"
     SUCCESS = "success"

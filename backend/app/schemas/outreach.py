@@ -11,6 +11,8 @@ from app.models.enums import (
     ContactVerification,
     DncSource,
     EmailStatus,
+    EmailType,
+    ReplyCategory,
 )
 
 # ---------- Gmail ----------
@@ -122,6 +124,11 @@ class EmailContact(BaseModel):
     name: str | None
     approval: ContactApproval
     verification: ContactVerification
+    # Evidence, so the approval queue can approve contact + email in one look.
+    source: ContactSource
+    source_url: str | None
+    source_excerpt: str | None
+    role_title: str | None
 
 
 class EmailApplication(BaseModel):
@@ -130,10 +137,12 @@ class EmailApplication(BaseModel):
     job_id: uuid.UUID
     job_title: str
     company: str
+    match_score: int | None = None
 
 
 class EmailRead(BaseModel):
     id: uuid.UUID
+    email_type: EmailType
     status: EmailStatus
     from_address: str
     to_address: str
@@ -159,6 +168,65 @@ class EmailUpdate(BaseModel):
 
 class ApproveBatch(BaseModel):
     email_ids: list[uuid.UUID] = Field(min_length=1, max_length=100)
+    approve_contacts: bool = False  # approval queue: approve pending contacts too
+
+
+# ---------- replies & automation (Phase 13) ----------
+
+
+class ReplyClassificationRead(BaseModel):
+    model_config = {"from_attributes": True}
+
+    id: uuid.UUID
+    category: ReplyCategory
+    confidence: float
+    summary: str
+    suggested_action: str | None
+    applied_transition: bool
+    user_confirmed: bool | None
+
+
+class ReplyRead(BaseModel):
+    id: uuid.UUID
+    status: EmailStatus  # received | bounced
+    from_address: str
+    subject: str
+    body_text: str
+    received_at: datetime | None
+    classification: ReplyClassificationRead | None
+
+
+class ReplyConfirm(BaseModel):
+    accept: bool
+
+
+class AutomationRun(BaseModel):
+    task_id: uuid.UUID
+    status: str
+    progress: int
+    result: dict[str, object] | None
+    error: str | None
+    created_at: datetime
+    finished_at: datetime | None
+
+
+class AutomationStatus(BaseModel):
+    keywords: list[str]
+    ready: bool  # resume parsed + Gmail connected
+    not_ready_reason: str | None
+    saved_ready: int  # saved jobs with an approved contact and no application
+    fetch_allowed: bool  # admin switch (Settings › Platform)
+    fetch_problem: str | None  # e.g. no keywords
+    max_jobs: int
+    last_run: AutomationRun | None
+
+
+class AutomationRunRequest(BaseModel):
+    mode: Literal["saved", "fetch"] = "saved"
+
+
+class PlatformSettings(BaseModel):
+    automation_fetch_enabled: bool
 
 
 class ApproveBatchRead(BaseModel):

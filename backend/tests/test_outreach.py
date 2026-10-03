@@ -13,7 +13,6 @@ from zoneinfo import ZoneInfo
 import httpx
 import pytest
 import respx
-from cryptography.fernet import Fernet
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
@@ -180,20 +179,6 @@ def test_message_has_ids_and_attachments() -> None:
 # ---------- helpers ----------
 
 
-@pytest.fixture
-def gmail_settings(settings: Settings) -> Settings:
-    return settings.model_copy(
-        update={
-            "google_client_id": "client-id",
-            "google_client_secret": "client-secret",
-            "token_encryption_key": Fernet.generate_key().decode(),
-            "google_oauth_url": OAUTH,
-            "gmail_api_url": GMAIL,
-            "send_jitter_seconds": 0,
-        }
-    )
-
-
 def _work(
     app: FastAPI, settings: Settings, task_id: str, tmp_path: Path, **overrides: Any
 ) -> Outcome:
@@ -235,7 +220,7 @@ def _connect_gmail(
         )
     )
     respx.get(f"{GMAIL}/gmail/v1/users/me/profile").mock(
-        return_value=httpx.Response(200, json={"emailAddress": address})
+        return_value=httpx.Response(200, json={"emailAddress": address, "historyId": "100"})
     )
     done = client.get(
         f"{API}/integrations/gmail/callback",
@@ -784,3 +769,36 @@ def test_contacts_and_emails_are_private(
         client.post(f"{API}/contacts", json={"email": "hr@acme.com"}, headers=bob).status_code
         == 201
     )
+
+
+def test_contacts_export_csv_with_job_details(
+    app: FastAPI, client: TestClient, migrated_database: str, settings: Settings, tmp_path: Path
+) -> None:
+    _, user = _setup(app, client, migrated_database, settings, tmp_path)
+    run = _search_and_run(
+        app,
+        client,
+        settings,
+        tmp_path,
+        user,
+        FakeJobSource([make_job(1, description=JD, company="=cmd|evil")]),
+    )
+    job_id = run["jobs"][0]["id"]
+    client.post(
+        f"{API}/contacts",
+        json={"email": "hr@acme.com", "name": "Priya", "role_title": "HR", "job_id": job_id},
+        headers=user,
+    )
+    client.post(f"{API}/contacts", json={"email": "solo@acme.com"}, headers=user)  # no job
+
+    everything = client.get(f"{API}/contacts/export.csv", headers=user)
+    filtered = client.get(f"{API}/contacts/export.csv?q=solo", headers=user)
+
+    text = everything.content.decode("utf-8")
+    header = text.splitlines()[0]
+    assert header.startswith("\ufeffEmail,Name,Contact role,Company,Job title,Location")
+    assert "Date posted" in header and header.endswith("Description")
+    assert "hr@acme.com,Priya,HR,'=cmd|evil,React Native Developer 1" in text  # formula-safe
+    assert "Responsibilities: build React Native apps" in text  # description included
+    assert 'filename="contacts-' in everything.headers["content-disposition"]
+    assert "solo@acme.com" in filtered.text and "hr@acme.com" not in filtered.text

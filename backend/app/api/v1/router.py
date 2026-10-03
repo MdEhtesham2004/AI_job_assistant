@@ -5,6 +5,7 @@ from app.api.v1.routes import (
     admin_system,
     applications,
     auth,
+    automation,
     contacts,
     documents,
     files,
@@ -30,6 +31,7 @@ api_router.include_router(applications.router)
 api_router.include_router(contacts.router)
 api_router.include_router(outreach.router)
 api_router.include_router(integrations.router)
+api_router.include_router(automation.router)
 api_router.include_router(saved_searches.router)
 api_router.include_router(tasks.router)
 api_router.include_router(notifications.router)

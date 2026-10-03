@@ -59,6 +59,26 @@ async def _dispatch_outbox(settings: Settings) -> dict[str, int]:
         await engine.dispose()
 
 
+async def _poll_replies(settings: Settings) -> dict[str, object]:
+    from app.integrations.ai import AiClient
+    from app.services.replies import poll_all
+
+    redis = create_redis(settings)
+    engine = create_engine(settings)
+    try:
+        async with create_session_factory(engine)() as session:
+            return await poll_all(session, settings, AiClient(settings, redis))
+    finally:
+        await engine.dispose()
+        await redis.aclose()
+
+
+@celery_app.task(name="tasks.poll_replies")
+def poll_replies() -> dict[str, object]:
+    """Celery Beat, every 5 minutes: new replies, bounces, follow-up drafts, no-response."""
+    return asyncio.run(_poll_replies(get_settings()))
+
+
 @celery_app.task(name="tasks.dispatch_outbox")
 def dispatch_outbox() -> dict[str, int]:
     """Celery Beat, every minute: send approved emails that are due; repair stuck sends."""

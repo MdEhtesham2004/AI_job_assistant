@@ -4,9 +4,15 @@ Scopes: gmail.send (send applications) and gmail.readonly (Phase 13 reads replie
 used to find a sent message again after a crash).
 """
 
+import base64
 import contextlib
-from dataclasses import dataclass
+import html as htmllib
+import json
+import re
+import uuid
+from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
+from email.utils import parseaddr
 from typing import Any
 from urllib.parse import urlencode
 
@@ -67,6 +73,87 @@ class TokenSet:
 class SentMessage:
     message_id: str
     thread_id: str
+
+
+class HistoryExpiredError(AppError):
+    """Gmail no longer knows the stored history id: fall back to reading the threads."""
+
+    code = "GMAIL_HISTORY_EXPIRED"
+
+
+@dataclass(frozen=True)
+class MessageRef:
+    message_id: str
+    thread_id: str
+    label_ids: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
+class GmailMessage:
+    message_id: str
+    thread_id: str
+    label_ids: tuple[str, ...]
+    from_address: str
+    from_name: str | None
+    to_address: str
+    subject: str
+    rfc822_message_id: str | None
+    received_at: datetime | None
+    text: str
+    headers: dict[str, str] = field(default_factory=dict)
+
+
+def _b64(data: str) -> bytes:
+    return base64.urlsafe_b64decode(data + "=" * (-len(data) % 4))
+
+
+def _body_text(payload: dict[str, Any]) -> str:
+    """Plain text of a message: the text/plain part, else text/html without tags."""
+    plain: list[str] = []
+    html: list[str] = []
+
+    def walk(part: dict[str, Any]) -> None:
+        mime = str(part.get("mimeType", ""))
+        data = (part.get("body") or {}).get("data")
+        if data and mime == "text/plain":
+            plain.append(_b64(data).decode("utf-8", errors="replace"))
+        elif data and mime == "text/html":
+            html.append(_b64(data).decode("utf-8", errors="replace"))
+        for child in part.get("parts") or []:
+            walk(child)
+
+    walk(payload)
+    if plain:
+        return "\n".join(plain).strip()
+    text = re.sub(r"<(script|style)[^>]*>.*?</\1>", " ", "\n".join(html), flags=re.S | re.I)
+    text = re.sub(r"<br\s*/?>|</p>|</div>", "\n", text, flags=re.I)
+    return htmllib.unescape(re.sub(r"<[^>]+>", " ", text)).strip()
+
+
+def parse_message(body: dict[str, Any]) -> GmailMessage:
+    payload = body.get("payload") or {}
+    headers = {
+        str(h.get("name", "")).lower(): str(h.get("value", ""))
+        for h in payload.get("headers") or []
+    }
+    name, address = parseaddr(headers.get("from", ""))
+    _, to = parseaddr(headers.get("to", ""))
+    received: datetime | None = None
+    if body.get("internalDate"):
+        received = datetime.fromtimestamp(int(body["internalDate"]) / 1000, tz=UTC)
+    return GmailMessage(
+        message_id=str(body.get("id", "")),
+        thread_id=str(body.get("threadId", "")),
+        label_ids=tuple(body.get("labelIds") or ()),
+        from_address=address.lower(),
+        from_name=name or None,
+        to_address=to.lower(),
+        subject=headers.get("subject", ""),
+        rfc822_message_id=headers.get("message-id"),
+        received_at=received,
+        text=_body_text(payload)[:20_000],
+        headers=headers,
+    )
 
 
 def _tokens(body: dict[str, Any], now: datetime) -> TokenSet:
@@ -209,16 +296,105 @@ class GmailApi:
                 return SentMessage(str(item["id"]), str(item["threadId"]))
         return None
 
-    async def send(self, mime: bytes) -> SentMessage:
-        """Upload endpoint: the raw MIME message as the body (attachments up to 35 MB)."""
+    # ---------- reading (Phase 13) ----------
+
+    async def profile(self) -> tuple[str, str]:
+        """(address, current historyId)."""
+        body = await self._get("/gmail/v1/users/me/profile")
+        return str(body["emailAddress"]), str(body["historyId"])
+
+    async def history(self, start_history_id: str) -> tuple[list[MessageRef], str]:
+        """Messages added since `start_history_id` and the newest history id.
+
+        Raises HistoryExpiredError when Gmail no longer has that point (about a week).
+        """
+        refs: list[MessageRef] = []
+        newest = start_history_id
+        page_token: str | None = None
+        for _ in range(20):  # at most 20 pages per poll
+            params = {
+                "startHistoryId": start_history_id,
+                "historyTypes": "messageAdded",
+                "maxResults": "500",
+            }
+            if page_token:
+                params["pageToken"] = page_token
+            try:
+                body = await self._get("/gmail/v1/users/me/history", params)
+            except ExternalServiceError as exc:
+                if exc.details.get("status") == 404:
+                    raise HistoryExpiredError() from exc
+                raise
+            newest = str(body.get("historyId") or newest)
+            for entry in body.get("history") or []:
+                for added in entry.get("messagesAdded") or []:
+                    message = added.get("message") or {}
+                    if message.get("id"):
+                        refs.append(
+                            MessageRef(
+                                str(message["id"]),
+                                str(message.get("threadId", "")),
+                                tuple(message.get("labelIds") or ()),
+                            )
+                        )
+            page_token = body.get("nextPageToken")
+            if not page_token:
+                break
+        return refs, newest
+
+    async def thread_refs(self, thread_id: str) -> list[MessageRef]:
+        body = await self._get(f"/gmail/v1/users/me/threads/{thread_id}", {"format": "minimal"})
+        return [
+            MessageRef(
+                str(m["id"]), str(m.get("threadId", thread_id)), tuple(m.get("labelIds") or ())
+            )
+            for m in body.get("messages") or []
+        ]
+
+    async def message(self, message_id: str) -> GmailMessage:
+        body = await self._get(f"/gmail/v1/users/me/messages/{message_id}", {"format": "full"})
+        return parse_message(body)
+
+    async def header(self, message_id: str, name: str) -> str | None:
+        body = await self._get(
+            f"/gmail/v1/users/me/messages/{message_id}",
+            {"format": "metadata", "metadataHeaders": name},
+        )
+        for item in body.get("payload", {}).get("headers", []):
+            if item.get("name", "").lower() == name.lower():
+                return str(item.get("value"))
+        return None
+
+    # ---------- sending ----------
+
+    async def send(self, mime: bytes, *, thread_id: str | None = None) -> SentMessage:
+        """Upload endpoint: the raw MIME message (attachments up to 35 MB).
+
+        With `thread_id` (follow-ups) a multipart upload carries the thread as metadata.
+        """
         url = self.base + "/upload/gmail/v1/users/me/messages/send"
+        if thread_id:
+            boundary = f"gmail-{uuid.uuid4().hex}"
+            content = (
+                (
+                    f"--{boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n"
+                    f"{json.dumps({'threadId': thread_id})}\r\n"
+                    f"--{boundary}\r\nContent-Type: message/rfc822\r\n\r\n"
+                ).encode()
+                + mime
+                + f"\r\n--{boundary}--".encode()
+            )
+            params = {"uploadType": "multipart"}
+            content_type = f"multipart/related; boundary={boundary}"
+        else:
+            content, params, content_type = mime, {"uploadType": "media"}, "message/rfc822"
         try:
             async with httpx.AsyncClient(timeout=60.0) as client:
                 response = await client.post(
                     url,
-                    params={"uploadType": "media"},
-                    content=mime,
-                    headers={**self.headers, "Content-Type": "message/rfc822"},
+                    params=params,
+                    content=content,
+                    headers={**self.headers, "Content-Type": content_type},
                 )
         except httpx.HTTPError as exc:
             # The request may have reached Gmail: reconciliation decides later.

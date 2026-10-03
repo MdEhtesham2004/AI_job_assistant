@@ -1,6 +1,7 @@
 """Outreach rules (Module 08): idempotency, send schedule, MIME message. No I/O."""
 
 import hashlib
+import re
 import uuid
 from collections.abc import Iterable
 from dataclasses import dataclass
@@ -75,8 +76,12 @@ def build_message(
     attachments: list[Attachment],
     idempotency: str,
     message_id: str | None = None,
+    in_reply_to: str | None = None,
 ) -> tuple[bytes, str]:
-    """The RFC 5322 message and its Message-ID (kept to find the mail again in Gmail)."""
+    """The RFC 5322 message and the Message-ID we set (Gmail may replace it).
+
+    `in_reply_to`: the Message-ID Gmail gave the original — follow-ups join its thread.
+    """
     message = EmailMessage(policy=SMTP)
     local, _, domain = from_address.partition("@")
     message["From"] = Address(display_name=from_name or "", username=local, domain=domain)
@@ -86,6 +91,9 @@ def build_message(
     message_id = message_id or make_msgid(domain=domain or None)
     message["Message-ID"] = message_id
     message[IDEMPOTENCY_HEADER] = idempotency
+    if in_reply_to:
+        message["In-Reply-To"] = in_reply_to
+        message["References"] = in_reply_to
     message.set_content(body)
     for item in attachments:
         maintype, _, subtype = item.mime_type.partition("/")
@@ -93,3 +101,31 @@ def build_message(
             item.data, maintype=maintype, subtype=subtype or "octet-stream", filename=item.file_name
         )
     return message.as_bytes(), message_id
+
+
+# ---------- replies (Phase 13) ----------
+
+_BOUNCE_SENDERS = re.compile(r"^(mailer-daemon|postmaster|mail-daemon)@", re.IGNORECASE)
+_BOUNCE_SUBJECT = re.compile(
+    r"delivery status notification|undeliverable|undelivered mail|mail delivery (failed|subsystem)|"
+    r"delivery (has )?failed|returned mail|failure notice",
+    re.IGNORECASE,
+)
+_NO_CONTACT = re.compile(
+    r"\b(do not|don't|dont|please stop|stop) (contact|email|mail|message|write to)(ing)? me\b|"
+    r"\bunsubscribe\b|\bremove me from\b",
+    re.IGNORECASE,
+)
+CONFIDENCE_AUTO = 0.80  # at or above: change the status; below: ask the user
+
+
+def is_bounce(from_address: str, subject: str) -> bool:
+    return bool(_BOUNCE_SENDERS.match(from_address) or _BOUNCE_SUBJECT.search(subject))
+
+
+def asks_not_to_be_contacted(text: str) -> bool:
+    return bool(_NO_CONTACT.search(text))
+
+
+def reply_subject(subject: str) -> str:
+    return subject if subject.lower().startswith("re:") else f"Re: {subject}"
