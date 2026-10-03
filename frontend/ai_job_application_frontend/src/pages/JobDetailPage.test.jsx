@@ -64,7 +64,8 @@ describe('JobDetailPage', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('needs a login')
 
     await userEvent.click(screen.getByRole('button', { name: 'Paste description' }))
-    await userEvent.type(screen.getByLabelText('Job description'), pasted)
+    await userEvent.click(screen.getByLabelText('Job description'))
+    await userEvent.paste(pasted) // a paste, like a real user (typing char by char is slow)
     await userEvent.click(screen.getByRole('button', { name: 'Save description' }))
 
     expect(await screen.findByText(pasted)).toBeInTheDocument()

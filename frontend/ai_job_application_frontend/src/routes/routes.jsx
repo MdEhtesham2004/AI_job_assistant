@@ -1,6 +1,8 @@
 import { AppLayout } from '@/layouts/AppLayout'
 import { AuthLayout } from '@/layouts/AuthLayout'
 import AdminUsersPage from '@/pages/admin/AdminUsersPage'
+import ApplicationDetailPage from '@/pages/ApplicationDetailPage'
+import ApplicationsPage from '@/pages/ApplicationsPage'
 import AwaitingApprovalPage from '@/pages/AwaitingApprovalPage'
 import ChangePasswordPage from '@/pages/ChangePasswordPage'
 import CoverLetterPage from '@/pages/CoverLetterPage'
@@ -69,6 +71,8 @@ export const routes = [
           { path: 'jobs/:jobId', element: <JobDetailPage /> },
           { path: 'jobs/:jobId/tailored', element: <TailoredResumePage /> },
           { path: 'jobs/:jobId/cover-letter', element: <CoverLetterPage /> },
+          { path: 'applications', element: <ApplicationsPage /> },
+          { path: 'applications/:applicationId', element: <ApplicationDetailPage /> },
           { path: 'resumes', element: <ResumesPage /> },
           { path: 'resumes/:versionId', element: <ResumeVersionPage /> },
           { path: 'tasks', element: <TasksPage /> },

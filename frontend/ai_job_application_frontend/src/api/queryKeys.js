@@ -32,6 +32,13 @@ export const queryKeys = {
     analysisSummary: (filters) => ['jobs', 'analysis-summary', filters],
     documents: (id) => ['jobs', 'documents', id],
   },
+  applications: {
+    all: () => ['applications'],
+    list: (filters) => ['applications', 'list', filters],
+    counts: () => ['applications', 'counts'],
+    detail: (id) => ['applications', 'detail', id],
+    forJob: (jobId) => ['applications', 'for-job', jobId],
+  },
   tasks: {
     all: () => ['tasks'],
     list: (page) => ['tasks', 'list', page],

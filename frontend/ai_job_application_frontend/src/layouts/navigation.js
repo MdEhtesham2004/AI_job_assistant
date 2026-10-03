@@ -3,6 +3,7 @@ import {
   Radar,
   BellRing,
   Briefcase,
+  ClipboardList,
   FileText,
   House,
   ListChecks,
@@ -31,6 +32,7 @@ export const navigation = [
       { to: '/jobs', label: 'Jobs', icon: Briefcase, end: true },
       { to: '/jobs/scan', label: 'Scan', icon: Radar },
       { to: '/jobs/saved', label: 'Saved searches', icon: BellRing },
+      { to: '/applications', label: 'Applications', icon: ClipboardList },
     ],
   },
   {
