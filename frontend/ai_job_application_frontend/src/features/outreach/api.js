@@ -20,6 +20,7 @@ export const gmailApi = {
 export const contactsApi = {
   list: (filters) => api.get(`/contacts${query(filters)}`),
   counts: () => api.get('/contacts/counts'),
+  exportCsv: (filters) => api.download(`/contacts/export.csv${query(filters)}`, 'contacts.csv'),
   create: (body) => api.post('/contacts', body),
   update: (id, changes) => api.patch(`/contacts/${id}`, changes),
   verify: (id) => api.post(`/contacts/${id}/verify`),
@@ -37,8 +38,42 @@ export const emailsApi = {
   outbox: (filters) => api.get(`/outbox${query(filters)}`),
   summary: () => api.get('/outbox/summary'),
   edit: (id, changes) => api.put(`/emails/${id}`, changes),
-  action: (id, action) => api.post(`/emails/${id}/${action}`),
-  approveBatch: (ids) => api.post('/emails/approve-batch', { email_ids: ids }),
+  action: (id, action, { approveContact = false } = {}) =>
+    api.post(`/emails/${id}/${action}${approveContact ? '?approve_contact=true' : ''}`),
+  approveBatch: (ids, approveContacts = false) =>
+    api.post('/emails/approve-batch', { email_ids: ids, approve_contacts: approveContacts }),
+}
+
+export const automationApi = {
+  status: () => api.get('/automation'),
+  /** mode: 'saved' (jobs you already have) | 'fetch' (search LinkedIn first) */
+  run: (mode) => api.post('/automation/run', { mode }),
+  platform: () => api.get('/admin/platform'),
+  updatePlatform: (changes) => api.patch('/admin/platform', changes),
+}
+
+export const repliesApi = {
+  forApplication: (applicationId) => api.get(`/applications/${applicationId}/replies`),
+  confirm: (classificationId, accept) =>
+    api.post(`/replies/${classificationId}/confirm`, { accept }),
+}
+
+export const REPLY_CATEGORY = {
+  interview_invite: { label: 'Interview invite', variant: 'success' },
+  info_request: { label: 'Asks for information', variant: 'warning' },
+  rejection: { label: 'Rejection', variant: 'destructive' },
+  offer: { label: 'Offer', variant: 'success' },
+  auto_reply: { label: 'Automatic reply', variant: 'outline' },
+  other: { label: 'Reply', variant: 'default' },
+}
+
+/** What confirming a reply would change the status to. */
+export const REPLY_TARGET = {
+  interview_invite: 'Interview',
+  info_request: 'Responded',
+  rejection: 'Rejected',
+  offer: 'Offer',
+  other: 'Responded',
 }
 
 export const SOURCE_LABELS = {
@@ -77,7 +112,7 @@ export const EMAIL_STATUS = {
 
 /** Outbox tabs → email statuses. */
 export const OUTBOX_TABS = [
-  { key: 'drafts', label: 'Drafts', statuses: ['draft'] },
+  { key: 'drafts', label: 'Ready for approval', statuses: ['draft'] },
   { key: 'scheduled', label: 'Scheduled', statuses: ['queued', 'sending'] },
   { key: 'sent', label: 'Sent', statuses: ['sent', 'bounced'] },
   { key: 'failed', label: 'Failed', statuses: ['failed'] },

@@ -12,6 +12,7 @@ import { MoveButtons } from '@/features/applications/components/MoveButtons'
 import { useApplication, useUpdateApplication } from '@/features/applications/hooks'
 import { MatchScoreBadge } from '@/features/jobs/components/MatchScore'
 import { ApplicationEmailCard } from '@/features/outreach/components/ApplicationEmailCard'
+import { RepliesCard } from '@/features/outreach/components/RepliesCard'
 import { KIND_LABELS } from '@/features/resumes/api'
 import { formatDateTime } from '@/lib/format'
 
@@ -140,6 +141,9 @@ function Detail({ application }) {
 
         <div className="flex flex-col gap-6">
           {application.channel === 'email' && <ApplicationEmailCard application={application} />}
+          {application.channel === 'email' && application.applied_at && (
+            <RepliesCard applicationId={application.id} />
+          )}
           <Timeline application={application} />
         </div>
       </div>

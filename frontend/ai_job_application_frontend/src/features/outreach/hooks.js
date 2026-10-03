@@ -1,12 +1,12 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { toast } from 'sonner'
 
 import { queryKeys } from '@/api/queryKeys'
 import { isActive } from '@/features/tasks/api'
 import { useTaskPolling } from '@/features/tasks/hooks'
 
-import { contactsApi, emailsApi, gmailApi } from './api'
+import { automationApi, contactsApi, emailsApi, gmailApi, repliesApi } from './api'
 
 const POLL_MS = 3000
 
@@ -44,6 +44,14 @@ export function useContacts(filters) {
     queryKey: queryKeys.contacts.list(filters),
     queryFn: () => contactsApi.list(filters),
     placeholderData: keepPreviousData,
+  })
+}
+
+export function useExportContacts() {
+  return useMutation({
+    mutationFn: contactsApi.exportCsv,
+    onSuccess: (name) => toast.success(`Downloaded ${name}`),
+    onError: (error) => toast.error(error.message),
   })
 }
 
@@ -185,15 +193,107 @@ const ACTION_TOASTS = {
   retry: 'Back to draft — review and approve it again.',
 }
 
-/** approve | reject | cancel | retry */
+/** approve | reject | cancel | retry; `approveContact` approves a pending contact too. */
 export const useEmailAction = () =>
   useEmailMutation(
-    ({ id, action }) => emailsApi.action(id, action),
+    ({ id, action, approveContact }) => emailsApi.action(id, action, { approveContact }),
     (_, { action }) => ACTION_TOASTS[action],
   )
 
-export const useApproveBatch = () =>
-  useEmailMutation(emailsApi.approveBatch, (result) => {
-    const failed = Object.keys(result.errors).length
-    return `${result.approved.length} approved${failed ? `, ${failed} could not be approved` : ''}.`
+// ---------- automation & replies (Phase 13) ----------
+
+const RUN_ACTIVE = ['queued', 'running']
+
+export function useAutomation() {
+  const queryClient = useQueryClient()
+  const query = useQuery({
+    queryKey: queryKeys.automation.status(),
+    queryFn: automationApi.status,
+    refetchInterval: (q) => (RUN_ACTIVE.includes(q.state.data?.last_run?.status) ? POLL_MS : false),
   })
+  const run = query.data?.last_run
+  // When a run finishes, the drafts it made must appear in the Outbox tabs at once
+  // (found live: the panel said "1 ready" while the tab still showed 0).
+  const finishedRun = run && !RUN_ACTIVE.includes(run.status) ? run.task_id : null
+  const seen = useRef(undefined)
+  useEffect(() => {
+    if (seen.current === undefined) {
+      seen.current = finishedRun // first load: nothing new
+      return
+    }
+    if (finishedRun && finishedRun !== seen.current) {
+      ;[queryKeys.emails.all(), queryKeys.applications.all(), queryKeys.jobs.all()].forEach((key) =>
+        queryClient.invalidateQueries({ queryKey: key }),
+      )
+    }
+    seen.current = finishedRun
+  }, [finishedRun, queryClient])
+  return query
+}
+
+export function useRunAutomation() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: automationApi.run,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.automation.status() })
+      toast.info('Automation started — it takes a few minutes.')
+    },
+    onError: (error) => toast.error(error.message),
+  })
+}
+
+export function usePlatformSettings({ enabled }) {
+  return useQuery({
+    queryKey: queryKeys.automation.platform(),
+    queryFn: automationApi.platform,
+    enabled,
+  })
+}
+
+export function useUpdatePlatform() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: automationApi.updatePlatform,
+    onSuccess: (saved) => {
+      queryClient.setQueryData(queryKeys.automation.platform(), saved)
+      queryClient.invalidateQueries({ queryKey: queryKeys.automation.status() })
+      toast.success(
+        saved.automation_fetch_enabled
+          ? '"Fetch new jobs & automate" is now available.'
+          : '"Fetch new jobs & automate" is locked.',
+      )
+    },
+    onError: (error) => toast.error(error.message),
+  })
+}
+
+export function useReplies(applicationId) {
+  return useQuery({
+    queryKey: queryKeys.emails.replies(applicationId),
+    queryFn: () => repliesApi.forApplication(applicationId),
+    enabled: Boolean(applicationId),
+  })
+}
+
+export function useConfirmReply() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, accept }) => repliesApi.confirm(id, accept),
+    onSuccess: (_, { accept }) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.emails.all() })
+      queryClient.invalidateQueries({ queryKey: queryKeys.applications.all() })
+      toast.success(accept ? 'Status updated.' : 'Dismissed.')
+    },
+    onError: (error) => toast.error(error.message),
+  })
+}
+
+export const useApproveBatch = () =>
+  useEmailMutation(
+    ({ ids, approveContacts }) => emailsApi.approveBatch(ids, approveContacts),
+    (result) => {
+      const failed = Object.keys(result.errors).length
+      return `${result.approved.length} approved${failed ? `, ${failed} could not be approved` : ''}.`
+    },
+  )

@@ -81,7 +81,8 @@ function JobDetail({ job }) {
                 className="inline-flex h-9 items-center gap-2 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground hover:bg-primary/90 [&_svg]:size-4"
               >
                 <ExternalLink aria-hidden="true" />
-                Apply
+                {/* A LinkedIn hiring post: you apply by email (Application card), not there. */}
+                {job.source === 'linkedin_post' ? 'View post' : 'Apply'}
               </a>
             )}
             {hidden ? (
@@ -141,7 +142,8 @@ function JobDetail({ job }) {
           </CardContent>
         </Card>
 
-        <div className="flex flex-col gap-6">
+        {/* Below xl the actions come first — a long post must not push them out of sight. */}
+        <div className="order-first flex flex-col gap-6 xl:order-none">
           <PrepareApplicationCard job={job} />
           <AnalysisPanel job={job} />
           <DocumentsCard jobId={job.id} canGenerate={job.description_quality !== 'missing'} />

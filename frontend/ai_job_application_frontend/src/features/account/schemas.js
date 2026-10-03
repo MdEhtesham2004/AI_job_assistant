@@ -51,6 +51,18 @@ export const settingsSchema = z
     linkedin_source_enabled: z.boolean(),
     automation_enabled: z.boolean(),
     automation_min_score: percent,
+    // Edited as "React Native, Flutter"; sent as a list (see keywordList).
+    automation_keywords: z
+      .string()
+      .refine((v) => keywordList(v).length <= 5, 'At most 5 keywords')
+      .refine((v) => keywordList(v).every((k) => k.length >= 2 && k.length <= 60), {
+        message: 'Each keyword needs 2–60 characters',
+      }),
+    automation_interval_hours: range(6, 168),
+    automation_max_jobs: range(1, 20),
+    automation_posted_limit: z.enum(['24h', 'week', 'month']),
+    automation_tailor: z.boolean(),
+    automation_cover_letter: z.boolean(),
     monthly_ai_budget_usd: z.number({ error: 'Enter an amount' }).min(0).max(1000),
   })
   .refine((v) => v.threshold_tailor < v.threshold_use_master, {
@@ -61,6 +73,14 @@ export const settingsSchema = z
     path: ['score_weights'],
     message: 'Weights must add up to 100',
   })
+
+/** "React Native, flutter ," → ['React Native', 'flutter'] */
+export function keywordList(text) {
+  return String(text ?? '')
+    .split(',')
+    .map((k) => k.trim())
+    .filter(Boolean)
+}
 
 export function timeZones() {
   try {

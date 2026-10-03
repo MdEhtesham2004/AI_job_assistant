@@ -1,11 +1,13 @@
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useQueryClient } from '@tanstack/react-query'
+import { ShieldCheck } from 'lucide-react'
 import { useEffect } from 'react'
 import { useForm, useWatch } from 'react-hook-form'
 import { useSearchParams } from 'react-router'
 import { toast } from 'sonner'
 
 import { queryKeys } from '@/api/queryKeys'
+import { useAuth } from '@/auth/useAuth'
 import { CheckboxField } from '@/components/common/CheckboxField'
 import { FormError } from '@/components/common/FormError'
 import { FormField } from '@/components/common/FormField'
@@ -13,8 +15,11 @@ import { PageHeader } from '@/components/common/PageHeader'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { useSettings, useUpdateSettings } from '@/features/account/hooks'
-import { WEIGHT_FIELDS, settingsSchema } from '@/features/account/schemas'
+import { Label } from '@/components/ui/label'
+import { Select } from '@/components/ui/select'
+import { WEIGHT_FIELDS, keywordList, settingsSchema } from '@/features/account/schemas'
 import { GmailCard } from '@/features/outreach/components/GmailCard'
+import { usePlatformSettings, useUpdatePlatform } from '@/features/outreach/hooks'
 import { applyServerErrors } from '@/lib/forms'
 import { cn } from '@/lib/utils'
 
@@ -35,9 +40,18 @@ function Section({ title, description, usedFrom, children }) {
   )
 }
 
+/** API settings → form values (money as a number, keywords as one comma-separated line). */
+function toForm(settings) {
+  return {
+    ...settings,
+    monthly_ai_budget_usd: Number(settings.monthly_ai_budget_usd),
+    automation_keywords: (settings.automation_keywords ?? []).join(', '),
+  }
+}
+
 function SettingsForm({ settings }) {
   const update = useUpdateSettings()
-  const defaults = { ...settings, monthly_ai_budget_usd: Number(settings.monthly_ai_budget_usd) }
+  const defaults = toForm(settings)
   const {
     register,
     handleSubmit,
@@ -53,9 +67,12 @@ function SettingsForm({ settings }) {
   const onSubmit = async (values) => {
     // Send only what changed (PATCH semantics); weights always as a complete set.
     const changes = Object.fromEntries(Object.keys(dirtyFields).map((key) => [key, values[key]]))
+    if ('automation_keywords' in changes) {
+      changes.automation_keywords = keywordList(changes.automation_keywords)
+    }
     try {
       const saved = await update.mutateAsync(changes)
-      reset({ ...saved, monthly_ai_budget_usd: Number(saved.monthly_ai_budget_usd) })
+      reset(toForm(saved))
       toast.success('Settings saved.')
     } catch (error) {
       if (error?.code === 'INVALID_THRESHOLDS') {
@@ -162,20 +179,50 @@ function SettingsForm({ settings }) {
         </div>
       </Section>
 
-      <Section title="Automation" description="End-to-end pipeline options." usedFrom="Phase 13">
-        <div className="sm:col-span-2 flex flex-col gap-3">
-          <CheckboxField
-            label="Enable automation"
-            description="Prepare applications automatically; you still approve every email."
-            registration={register('automation_enabled')}
+      <Section
+        title="Automation"
+        description="Runs only when you click it in the Outbox: scores your jobs, prepares the documents and drafts the emails. Nothing is sent until you approve it."
+      >
+        <div className="sm:col-span-2">
+          <FormField
+            label="Keywords for fetching new jobs (comma-separated, up to 5)"
+            hint="Used only by 'Fetch new jobs & automate' — each keyword is one LinkedIn search. Shorter finds more, e.g. Data Scientist."
+            registration={register('automation_keywords')}
+            error={errors.automation_keywords}
           />
         </div>
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="automation-posted">Fetch posts from the last</Label>
+          <Select id="automation-posted" {...register('automation_posted_limit')}>
+            <option value="24h">24 hours</option>
+            <option value="week">week</option>
+            <option value="month">month</option>
+          </Select>
+        </div>
         <FormField
-          label="Minimum match score for automation"
+          label="Minimum match score"
           type="number"
+          hint="Jobs below this are not prepared."
           registration={register('automation_min_score', num)}
           error={errors.automation_min_score}
         />
+        <FormField
+          label="Applications prepared per run (max)"
+          type="number"
+          hint="Caps AI cost per run."
+          registration={register('automation_max_jobs', num)}
+          error={errors.automation_max_jobs}
+        />
+        <div className="sm:col-span-2 flex flex-col gap-3">
+          <CheckboxField
+            label="Tailor the resume when the match analysis recommends it"
+            registration={register('automation_tailor')}
+          />
+          <CheckboxField
+            label="Write a cover letter and attach it"
+            registration={register('automation_cover_letter')}
+          />
+        </div>
       </Section>
 
       <Section
@@ -219,14 +266,52 @@ function useGmailRedirectNotice() {
   }, [result])
 }
 
+/** Admin only: platform-wide switches (all users). */
+function PlatformCard() {
+  const platform = usePlatformSettings({ enabled: true })
+  const update = useUpdatePlatform()
+  const enabled = platform.data?.automation_fetch_enabled ?? false
+  return (
+    <Card className="max-w-3xl">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <ShieldCheck className="size-4 text-primary" aria-hidden="true" />
+          Platform (admin)
+        </CardTitle>
+        <CardDescription>Applies to every user of this platform.</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <label className="flex items-start gap-3 text-sm">
+          <input
+            type="checkbox"
+            className="mt-0.5 size-4 accent-primary"
+            checked={enabled}
+            disabled={platform.isPending || update.isPending}
+            onChange={(e) => update.mutate({ automation_fetch_enabled: e.target.checked })}
+          />
+          <span>
+            <span className="font-medium">Allow “Fetch new jobs &amp; automate”</span>
+            <span className="block text-muted-foreground">
+              Lets users search LinkedIn hiring posts from the Outbox automation. Each run uses
+              Apify credit (about 25 posts per keyword) plus AI for every new post.
+            </span>
+          </span>
+        </label>
+      </CardContent>
+    </Card>
+  )
+}
+
 export default function SettingsPage() {
   const settings = useSettings()
+  const { user } = useAuth()
   useGmailRedirectNotice()
   return (
     <>
       <PageHeader title="Settings" description="Your preferences. Saved per account." />
-      <div className="mb-6">
+      <div className="mb-6 flex flex-col gap-6">
         <GmailCard />
+        {user?.role === 'admin' && <PlatformCard />}
       </div>
       {settings.isPending && <p className="text-sm text-muted-foreground">Loading…</p>}
       {settings.isError && <FormError message={settings.error.message} />}

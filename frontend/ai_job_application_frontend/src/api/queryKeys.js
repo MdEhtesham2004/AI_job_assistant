@@ -53,6 +53,11 @@ export const queryKeys = {
     outbox: (filters) => ['emails', 'outbox', filters],
     summary: () => ['emails', 'summary'],
     forApplication: (id) => ['emails', 'application', id],
+    replies: (id) => ['emails', 'replies', id],
+  },
+  automation: {
+    status: () => ['automation', 'status'],
+    platform: () => ['automation', 'platform'],
   },
   tasks: {
     all: () => ['tasks'],

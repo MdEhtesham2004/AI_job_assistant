@@ -1,8 +1,11 @@
+import { useQueryClient } from '@tanstack/react-query'
 import {
   Ban,
   Check,
+  Download,
   ExternalLink,
   LoaderCircle,
+  Mail,
   RefreshCw,
   Search,
   Trash2,
@@ -10,7 +13,10 @@ import {
   X,
 } from 'lucide-react'
 import { useState } from 'react'
-import { Link, useSearchParams } from 'react-router'
+import { Link, useNavigate, useSearchParams } from 'react-router'
+import { toast } from 'sonner'
+
+import { queryKeys } from '@/api/queryKeys'
 
 import { PageHeader } from '@/components/common/PageHeader'
 import { Badge } from '@/components/ui/badge'
@@ -21,6 +27,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select } from '@/components/ui/select'
 import { useSettings } from '@/features/account/hooks'
+import { applicationsApi } from '@/features/applications/api'
 import { SOURCE_LABELS } from '@/features/outreach/api'
 import { ApprovalBadge, VerificationBadge } from '@/features/outreach/components/Badges'
 import {
@@ -31,6 +38,7 @@ import {
   useCreateContact,
   useDeleteContact,
   useDiscoverContacts,
+  useExportContacts,
   useUnblock,
   useUpdateContact,
   useVerifyContact,
@@ -53,6 +61,7 @@ export default function ContactsPage() {
   const [adding, setAdding] = useState(false)
   const contacts = useContacts({ approval, q, page_size: 100 })
   const counts = useContactCounts().data
+  const exporter = useExportContacts()
 
   return (
     <>
@@ -60,10 +69,21 @@ export default function ContactsPage() {
         title="Contacts"
         description="People you may email. Every contact needs your approval and shows where it came from."
         actions={
-          <Button onClick={() => setAdding(true)}>
-            <UserPlus />
-            Add contact
-          </Button>
+          <>
+            <Button
+              variant="outline"
+              onClick={() => exporter.mutate({ approval, q })}
+              disabled={exporter.isPending}
+              title="Contacts in this tab and search, with company, role, date posted and description"
+            >
+              <Download />
+              Export CSV
+            </Button>
+            <Button onClick={() => setAdding(true)}>
+              <UserPlus />
+              Add contact
+            </Button>
+          </>
         }
       />
       <AddContactDialog open={adding} onClose={() => setAdding(false)} />
@@ -225,6 +245,39 @@ function LinkedInSearch() {
   )
 }
 
+/** Approved contact → its job's email application (created if needed) → write & approve. */
+function EmailApplicationButton({ contact }) {
+  const navigate = useNavigate()
+  const queryClient = useQueryClient()
+  const [busy, setBusy] = useState(false)
+  const open = async () => {
+    setBusy(true)
+    try {
+      const created = await applicationsApi.create(contact.job.id, {
+        channel: 'email',
+        contact_id: contact.id,
+      })
+      queryClient.invalidateQueries({ queryKey: queryKeys.applications.all() })
+      navigate(`/applications/${created.id}`)
+    } catch (error) {
+      // One application per job: open the one that exists.
+      if (error?.code === 'APPLICATION_EXISTS') {
+        navigate(`/applications/${error.details.application_id}`)
+      } else {
+        toast.error(error.message)
+      }
+    } finally {
+      setBusy(false)
+    }
+  }
+  return (
+    <Button size="sm" onClick={open} disabled={busy}>
+      {busy ? <LoaderCircle className="animate-spin" /> : <Mail />}
+      Email application
+    </Button>
+  )
+}
+
 function ContactRow({ contact }) {
   const update = useUpdateContact()
   const verify = useVerifyContact()
@@ -256,6 +309,9 @@ function ContactRow({ contact }) {
           )}
         </div>
         <div className="flex flex-wrap gap-1.5">
+          {contact.approval === 'approved' && contact.job && !contact.blocked && (
+            <EmailApplicationButton contact={contact} />
+          )}
           {contact.approval !== 'approved' && (
             <Button
               size="sm"

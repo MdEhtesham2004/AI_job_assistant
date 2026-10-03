@@ -4,6 +4,7 @@ import { Route, Routes } from 'react-router'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { GmailCard } from '@/features/outreach/components/GmailCard'
+import { RepliesCard } from '@/features/outreach/components/RepliesCard'
 import { jsonResponse, mockApi, renderWithProviders } from '@/test/utils'
 
 import ApplicationDetailPage from './ApplicationDetailPage'
@@ -86,6 +87,17 @@ function makeEmail(overrides = {}) {
 }
 
 const page = (items) => ({ items, total: items.length, page: 1, page_size: 100 })
+
+const AUTOMATION = {
+  keywords: ['Data Scientist'],
+  ready: true,
+  not_ready_reason: null,
+  saved_ready: 2,
+  fetch_allowed: false,
+  fetch_problem: null,
+  max_jobs: 5,
+  last_run: null,
+}
 
 describe('GmailCard', () => {
   it('starts the Google consent when not connected', async () => {
@@ -202,7 +214,8 @@ describe('OutboxPage', () => {
 
     await vi.waitFor(() => {
       const call = fetchMock.mock.calls.find(([url]) => String(url).endsWith('/approve-batch'))
-      expect(JSON.parse(call[1].body)).toEqual({ email_ids: ['e1', 'e2'] })
+      // The cards show each contact's evidence, so pending contacts are approved too.
+      expect(JSON.parse(call[1].body)).toEqual({ email_ids: ['e1', 'e2'], approve_contacts: true })
     })
   })
 
@@ -282,5 +295,243 @@ describe('Email on the application page', () => {
       expect(JSON.parse(call[1].body)).toEqual({ contact_id: 'c1' })
     })
     expect(screen.queryByRole('button', { name: 'Send for approval' })).not.toBeInTheDocument()
+  })
+})
+
+describe('Phase 13: approval queue, automation and replies', () => {
+  it('approves a new contact together with its email', async () => {
+    const fetchMock = mockApi({
+      'GET /outbox': page([
+        makeEmail({
+          contact: {
+            ...makeEmail().contact,
+            approval: 'pending',
+            source: 'linkedin_post',
+            source_url: 'https://www.linkedin.com/posts/p1',
+            source_excerpt: '…share your resume at priya.hr@gmail.com…',
+            role_title: 'HR Manager',
+          },
+          application: { ...makeEmail().application, match_score: 81 },
+        }),
+      ]),
+      'GET /outbox/summary': {
+        counts: { draft: 1 },
+        sent_today: 0,
+        daily_cap: 25,
+        interval_seconds: 90,
+        next_slot: null,
+        gmail_connected: true,
+        gmail_email: 'asha@gmail.com',
+      },
+      'GET /automation': {
+        ...AUTOMATION,
+        fetch_allowed: true,
+        last_run: {
+          task_id: 't0',
+          status: 'succeeded',
+          progress: 100,
+          result: {
+            mode: 'fetch',
+            posts: 20,
+            candidates: 3,
+            scored: 3,
+            reused_scores: 0,
+            below_minimum: 2,
+            prepared: 1,
+            empty_keywords: [],
+            skipped: [],
+            stopped: null,
+          },
+          error: null,
+          created_at: '2026-10-03T09:00:00Z',
+          finished_at: '2026-10-03T09:04:00Z',
+        },
+      },
+      'POST /emails/e1/approve': makeEmail({ status: 'queued' }),
+    })
+    renderWithProviders(<OutboxPage />)
+
+    expect(await screen.findByText('New contact — not approved yet')).toBeInTheDocument()
+    expect(screen.getByText('…share your resume at priya.hr@gmail.com…')).toBeInTheDocument()
+    expect(screen.getByText('81% match')).toBeInTheDocument()
+    expect(await screen.findByText('1 ready for approval')).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'Approve contact & send' }))
+
+    await vi.waitFor(() =>
+      expect(
+        fetchMock.mock.calls.some(([url]) =>
+          String(url).endsWith('/emails/e1/approve?approve_contact=true'),
+        ),
+      ).toBe(true),
+    )
+  })
+
+  const runBody = (fetchMock) => {
+    const call = fetchMock.mock.calls.find(([url]) => String(url).endsWith('/automation/run'))
+    return call && JSON.parse(call[1].body)
+  }
+
+  it('automates saved jobs; fetching is locked until the admin allows it', async () => {
+    const fetchMock = mockApi({
+      'GET /outbox': page([]),
+      'GET /outbox/summary': { counts: {}, sent_today: 0, daily_cap: 25, interval_seconds: 90 },
+      'GET /automation': AUTOMATION,
+      'POST /automation/run': { task_id: 't1' },
+    })
+    renderWithProviders(<OutboxPage />)
+
+    const fetchButton = await screen.findByRole('button', { name: /Fetch new jobs & automate/ })
+    expect(fetchButton).toBeDisabled()
+    expect(screen.getByText(/locked by your admin/)).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'Automate saved jobs (2)' }))
+
+    await vi.waitFor(() => expect(runBody(fetchMock)).toEqual({ mode: 'saved' }))
+  })
+
+  it('suggests fetching when no saved job is ready and asks before using credit', async () => {
+    const fetchMock = mockApi({
+      'GET /outbox': page([]),
+      'GET /outbox/summary': { counts: {}, sent_today: 0, daily_cap: 25, interval_seconds: 90 },
+      'GET /automation': { ...AUTOMATION, saved_ready: 0, fetch_allowed: true },
+      'POST /automation/run': { task_id: 't1' },
+    })
+    renderWithProviders(<OutboxPage />)
+
+    expect(await screen.findByRole('button', { name: 'Automate saved jobs (0)' })).toBeDisabled()
+    expect(screen.getByText(/No saved job is ready/)).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: /Fetch new jobs & automate/ }))
+    expect(screen.getByRole('dialog', { name: 'Fetch new jobs and automate?' })).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'Fetch & automate' }))
+
+    await vi.waitFor(() => expect(runBody(fetchMock)).toEqual({ mode: 'fetch' }))
+  })
+
+  it('shows a reply and lets the user confirm an unsure reading', async () => {
+    const fetchMock = mockApi({
+      'GET /applications/a1/replies': [
+        {
+          id: 'r1',
+          status: 'received',
+          from_address: 'priya@acme.com',
+          subject: 'Re: Application',
+          body_text: "Let's talk at some point.",
+          received_at: '2026-10-03T10:00:00Z',
+          classification: {
+            id: 'c1',
+            category: 'interview_invite',
+            confidence: 0.55,
+            summary: 'The recruiter would like to talk.',
+            suggested_action: 'Reply with 2-3 time slots',
+            applied_transition: false,
+            user_confirmed: null,
+          },
+        },
+      ],
+      'POST /replies/c1/confirm': (_, init) =>
+        jsonResponse({ id: 'c1', ...JSON.parse(init.body), applied_transition: true }),
+    })
+    renderWithProviders(<RepliesCard applicationId="a1" />)
+
+    expect(await screen.findByText('Interview invite')).toBeInTheDocument()
+    expect(screen.getByText('55% sure')).toBeInTheDocument()
+    expect(screen.getByText('The recruiter would like to talk.')).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'Yes, set to Interview' }))
+
+    await vi.waitFor(() => {
+      const call = fetchMock.mock.calls.find(([url]) => String(url).endsWith('/replies/c1/confirm'))
+      expect(JSON.parse(call[1].body)).toEqual({ accept: true })
+    })
+  })
+})
+
+describe('Email application from an approved contact', () => {
+  it('creates the email application and opens it', async () => {
+    const fetchMock = mockApi({
+      'GET /contacts': page([makeContact({ approval: 'approved' })]),
+      'GET /contacts/counts': { counts: { pending: 0, approved: 1, rejected: 0 }, total: 1 },
+      'GET /do-not-contact': [],
+      'GET /users/me/settings': { linkedin_source_enabled: false },
+      'POST /jobs/j1/applications': (_, init) =>
+        jsonResponse({ id: 'a9', ...JSON.parse(init.body) }, { status: 201 }),
+    })
+    renderWithProviders(
+      <Routes>
+        <Route path="/contacts" element={<ContactsPage />} />
+        <Route path="/applications/:applicationId" element={<p>Application page</p>} />
+      </Routes>,
+      { route: '/contacts?approval=approved' },
+    )
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Email application' }))
+
+    expect(await screen.findByText('Application page')).toBeInTheDocument()
+    const post = fetchMock.mock.calls.find(([url]) => String(url).endsWith('/jobs/j1/applications'))
+    expect(JSON.parse(post[1].body)).toEqual({ channel: 'email', contact_id: 'c1' })
+  })
+})
+
+describe('Outbox after an automation run', () => {
+  it('shows the new drafts as soon as the run finishes', async () => {
+    let polls = 0
+    const run = (status) => ({
+      ...AUTOMATION,
+      last_run: {
+        task_id: 't1',
+        status,
+        progress: status === 'running' ? 50 : 100,
+        result:
+          status === 'running' ? null : { mode: 'saved', candidates: 3, scored: 3, prepared: 1 },
+        error: null,
+        created_at: '2026-10-03T14:36:00Z',
+        finished_at: status === 'running' ? null : '2026-10-03T14:36:19Z',
+      },
+    })
+    mockApi({
+      'GET /automation': () => {
+        polls += 1 // first answer: running; from the next poll on: finished
+        return jsonResponse(run(polls > 1 ? 'succeeded' : 'running'))
+      },
+      'GET /outbox': () => jsonResponse(page(polls > 1 ? [makeEmail()] : [])),
+      'GET /outbox/summary': { counts: {}, sent_today: 0, daily_cap: 25, interval_seconds: 90 },
+    })
+    renderWithProviders(<OutboxPage />)
+
+    expect(await screen.findByText(/No drafts/)).toBeInTheDocument()
+    expect(await screen.findByLabelText('Subject', {}, { timeout: 8000 })).toHaveValue(
+      'Application for React Native Developer – Asha Verma',
+    )
+  })
+})
+
+describe('Contacts CSV export', () => {
+  it('downloads the contacts of the current tab and search', async () => {
+    vi.stubGlobal(
+      'URL',
+      Object.assign(URL, { createObjectURL: vi.fn(() => 'blob:x'), revokeObjectURL: vi.fn() }),
+    )
+    const fetchMock = mockApi({
+      'GET /contacts': page([makeContact({ approval: 'approved' })]),
+      'GET /contacts/counts': { counts: { pending: 0, approved: 1, rejected: 0 }, total: 1 },
+      'GET /do-not-contact': [],
+      'GET /users/me/settings': { linkedin_source_enabled: false },
+      'GET /contacts/export.csv': () =>
+        new Response('\ufeffEmail\r\n', {
+          headers: {
+            'Content-Type': 'text/csv',
+            'Content-Disposition': 'attachment; filename="contacts-2026-10-03.csv"',
+          },
+        }),
+    })
+    renderWithProviders(<ContactsPage />, { route: '/contacts?approval=approved' })
+
+    await screen.findByText('priya.hr@gmail.com')
+    await userEvent.type(screen.getByLabelText('Search contacts'), 'priya')
+    await userEvent.click(screen.getByRole('button', { name: 'Export CSV' }))
+
+    await vi.waitFor(() => {
+      const url = String(fetchMock.mock.calls.find(([u]) => String(u).includes('export.csv'))[0])
+      expect(url).toContain('approval=approved')
+      expect(url).toContain('q=priya')
+    })
   })
 })
