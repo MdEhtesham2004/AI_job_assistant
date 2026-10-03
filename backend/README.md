@@ -173,6 +173,29 @@ POST /jobs/{id}/cover-letter {contact_name?} → task cover_letter:
 | `PUT /api/v1/resumes/versions/{id}/content` | edit a tailored resume (structured) → new PDF |
 | `PATCH /api/v1/cover-letters/{id}` | edit text and/or `status` (`draft`/`final`) → new PDF |
 
+## Applications (Phase 11)
+
+One application per job per user (`uq_applications_user_id_job_id`). Every status change goes through `domain/state_machine.check()` and writes one append-only `application_status_history` row in the same transaction.
+
+```text
+ready_to_apply → waiting_for_approval → approved → sending → applied      (email, Phase 12)
+ready_to_apply → applied                                                   (portal / referral: "Mark as applied")
+applied → responded / interview / no_response → offer | rejected;  any open state → withdrawn
+```
+
+- People cannot set `sending`/`failed` (the email sender does); approval steps exist only for the email channel; email applications become `applied` only when sent.
+- Resume, cover letter and channel can change until the application goes out (`APPLICATION_LOCKED` after); the next action can always change.
+- Default resume: the job's tailored version, else the active one.
+
+| Endpoint | Purpose |
+|---|---|
+| `POST /api/v1/jobs/{id}/applications` | prepare (channel, resume, cover letter, next action) |
+| `GET /api/v1/jobs/{id}/application` | the application for a job, or `null` |
+| `GET /api/v1/applications?status=…&status=…&channel=&q=&sort=` | list (board / table) |
+| `GET /api/v1/applications/counts` · `/export.csv` | per-status counts · CSV (Excel-safe) |
+| `GET/PATCH /api/v1/applications/{id}` | detail with timeline + `allowed_next` · edit |
+| `POST /api/v1/applications/{id}/status` · `/mark-applied` | move (409 `INVALID_TRANSITION`) · portal/referral applied |
+
 - Health (API + database + migration revision): http://localhost:8000/api/v1/health
 - API docs: http://localhost:8000/api/v1/docs
 
@@ -249,7 +272,7 @@ app/
 ├── schemas/             Pydantic request/response models
 ├── services/            business logic
 └── workers/             Celery app, task runner, handlers/
-migrations/              Alembic environment + versions/0001_core.py … 0009_cover_letters.py
+migrations/              Alembic environment + versions/0001_core.py … 0010_applications.py
 tests/
 ```
 

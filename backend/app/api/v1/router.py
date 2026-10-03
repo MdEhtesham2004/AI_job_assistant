@@ -3,6 +3,7 @@ from fastapi import APIRouter
 from app.api.v1.routes import (
     admin,
     admin_system,
+    applications,
     auth,
     documents,
     files,
@@ -22,6 +23,7 @@ api_router.include_router(users.router)
 api_router.include_router(resumes.router)
 api_router.include_router(jobs.router)
 api_router.include_router(documents.router)
+api_router.include_router(applications.router)
 api_router.include_router(saved_searches.router)
 api_router.include_router(tasks.router)
 api_router.include_router(notifications.router)

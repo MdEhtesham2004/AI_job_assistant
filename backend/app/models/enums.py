@@ -89,6 +89,36 @@ class DocumentStatus(StrEnum):
     FINAL = "final"
 
 
+class ApplicationChannel(StrEnum):
+    EMAIL = "email"
+    PORTAL = "portal"
+    REFERRAL = "referral"
+
+
+class ApplicationStatus(StrEnum):
+    """Phase 0 §6.2. Discovery states (new/saved/analyzed/skipped) live in user_jobs."""
+
+    READY_TO_APPLY = "ready_to_apply"
+    WAITING_FOR_APPROVAL = "waiting_for_approval"
+    APPROVED = "approved"
+    SENDING = "sending"
+    APPLIED = "applied"
+    RESPONDED = "responded"
+    INTERVIEW = "interview"
+    OFFER = "offer"
+    REJECTED_BY_USER = "rejected_by_user"
+    FAILED = "failed"
+    REJECTED = "rejected"
+    NO_RESPONSE = "no_response"
+    WITHDRAWN = "withdrawn"
+
+
+class StatusChangeSource(StrEnum):
+    USER = "user"
+    SYSTEM = "system"
+    EMAIL_REPLY = "email_reply"
+
+
 class NotificationSeverity(StrEnum):
     INFO = "info"
     SUCCESS = "success"

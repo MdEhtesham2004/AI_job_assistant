@@ -9,12 +9,22 @@ from fastapi.testclient import TestClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.accounts import User
+from app.models.applications import Application, ApplicationStatusHistory
 from app.models.documents import CoverLetter
-from app.models.enums import AnalysisDecision, DescriptionQuality, JobSource, ResumeKind
+from app.models.enums import (
+    AnalysisDecision,
+    ApplicationChannel,
+    ApplicationStatus,
+    DescriptionQuality,
+    JobSource,
+    ResumeKind,
+    StatusChangeSource,
+)
 from app.models.jobs import Job, JobSearchRun, SavedSearch
 from app.models.resumes import Resume, ResumeAtsReport, ResumeVersion
 from app.models.system import Task
 from app.repositories.analyses import JobAnalysisRepository
+from app.repositories.applications import ApplicationHistoryRepository, ApplicationRepository
 from app.repositories.documents import CoverLetterRepository
 from app.repositories.jobs import (
     JobFilters,
@@ -249,6 +259,40 @@ async def test_cover_letters_and_tailored_versions_are_private(session: AsyncSes
     assert (
         await ResumeVersionRepository(session, owner_id=alice.id).latest_tailored(job.id)
     ).id == tailored.id
+
+
+async def test_applications_and_their_history_are_private(session: AsyncSession) -> None:
+    """Phase 11. HTTP side: test_applications.py::test_applications_are_private."""
+    alice, bob = await _two_users(session)
+    job = Job(
+        source=JobSource.JSEARCH,
+        external_id="x4",
+        title="Dev",
+        company="Acme",
+        description_quality=DescriptionQuality.COMPLETE,
+        dedupe_hash="h4",
+    )
+    session.add(job)
+    await session.flush()
+    application = await ApplicationRepository(session, owner_id=alice.id).add(
+        Application(job_id=job.id, channel=ApplicationChannel.PORTAL)
+    )
+    await ApplicationHistoryRepository(session, owner_id=alice.id).add(
+        ApplicationStatusHistory(
+            application_id=application.id,
+            to_status=ApplicationStatus.READY_TO_APPLY,
+            source=StatusChangeSource.USER,
+        )
+    )
+    await session.commit()
+
+    bob_apps = ApplicationRepository(session, owner_id=bob.id)
+    assert await bob_apps.get(application.id) is None
+    assert await bob_apps.for_job(job.id) is None
+    assert await bob_apps.by_job_ids([job.id]) == {}
+    assert (await bob_apps.status_counts())["ready_to_apply"] == 0
+    bob_history = ApplicationHistoryRepository(session, owner_id=bob.id)
+    assert await bob_history.for_application(application.id) == []
 
 
 def test_api_profile_and_settings_return_only_your_own(
