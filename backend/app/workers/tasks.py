@@ -42,3 +42,24 @@ async def _dispatch_saved_searches(settings: Settings) -> int:
 def dispatch_saved_searches() -> int:
     """Celery Beat, every 5 minutes: start saved searches that are due."""
     return asyncio.run(_dispatch_saved_searches(get_settings()))
+
+
+async def _dispatch_outbox(settings: Settings) -> dict[str, int]:
+    from app.integrations.storage import create_storage
+    from app.services.outreach import dispatch_outbox
+    from app.workers.dispatch import CeleryDispatcher
+
+    engine = create_engine(settings)
+    try:
+        async with create_session_factory(engine)() as session:
+            return await dispatch_outbox(
+                session, settings, CeleryDispatcher(), create_storage(settings), datetime.now(UTC)
+            )
+    finally:
+        await engine.dispose()
+
+
+@celery_app.task(name="tasks.dispatch_outbox")
+def dispatch_outbox() -> dict[str, int]:
+    """Celery Beat, every minute: send approved emails that are due; repair stuck sends."""
+    return asyncio.run(_dispatch_outbox(get_settings()))

@@ -13,6 +13,7 @@ from app.core.rate_limit import SlidingWindowRateLimiter
 from app.core.redis import create_redis
 from app.db.session import create_engine, create_session_factory
 from app.integrations.gotenberg import GotenbergClient
+from app.integrations.mail_dns import DnsDomainChecker
 from app.integrations.storage import create_storage
 from app.services.tasks import RecordingDispatcher, TaskDispatcher
 
@@ -55,6 +56,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.storage = create_storage(settings)
     app.state.gotenberg = GotenbergClient.from_settings(settings)
     app.state.dispatcher = create_dispatcher(settings)
+    # Phase 12: MX check for contacts the user adds (tests replace it).
+    app.state.domain_checker = DnsDomainChecker()
 
     app.add_middleware(
         CORSMiddleware,

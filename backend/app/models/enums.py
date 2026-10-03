@@ -44,6 +44,7 @@ class JobSource(StrEnum):
     JSEARCH = "jsearch"
     MANUAL = "manual"
     LEGACY_SHEET = "legacy_sheet"
+    LINKEDIN_POST = "linkedin_post"  # Phase 12: a hiring post with an email (private job)
 
 
 class JobVisibility(StrEnum):
@@ -117,6 +118,65 @@ class StatusChangeSource(StrEnum):
     USER = "user"
     SYSTEM = "system"
     EMAIL_REPLY = "email_reply"
+
+
+class OAuthStatus(StrEnum):
+    CONNECTED = "connected"
+    EXPIRED = "expired"
+    REVOKED = "revoked"
+    ERROR = "error"
+
+
+class ContactSource(StrEnum):
+    USER = "user"
+    JOB_POSTING = "job_posting"
+    LINKEDIN_POST = "linkedin_post"
+    HUNTER = "hunter"
+    COMPANY_SITE = "company_site"
+    LEGACY_IMPORT = "legacy_import"
+
+
+class ContactVerification(StrEnum):
+    UNVERIFIED = "unverified"
+    VALID = "valid"
+    RISKY = "risky"
+    INVALID = "invalid"
+
+
+class ContactApproval(StrEnum):
+    PENDING = "pending"
+    APPROVED = "approved"
+    REJECTED = "rejected"
+
+
+class DncSource(StrEnum):
+    USER = "user"
+    REPLY = "reply"
+    BOUNCE = "bounce"
+
+
+class EmailDirection(StrEnum):
+    OUTBOUND = "outbound"
+    INBOUND = "inbound"
+
+
+class EmailType(StrEnum):
+    APPLICATION = "application"
+    FOLLOW_UP_1 = "follow_up_1"
+    FOLLOW_UP_2 = "follow_up_2"
+    REPLY = "reply"
+
+
+class EmailStatus(StrEnum):
+    DRAFT = "draft"
+    APPROVED = "approved"
+    QUEUED = "queued"
+    SENDING = "sending"
+    SENT = "sent"
+    FAILED = "failed"
+    BOUNCED = "bounced"
+    REJECTED = "rejected"
+    RECEIVED = "received"
 
 
 class NotificationSeverity(StrEnum):

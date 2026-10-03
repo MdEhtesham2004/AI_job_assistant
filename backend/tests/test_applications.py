@@ -61,8 +61,12 @@ def test_state_machine_rules() -> None:
     for terminal in (S.OFFER, S.REJECTED, S.WITHDRAWN):
         assert user_options(terminal, C.PORTAL) == []
     assert user_options(S.READY_TO_APPLY, C.PORTAL) == [S.APPLIED, S.WITHDRAWN]
-    assert user_options(S.READY_TO_APPLY, C.EMAIL) == [S.WAITING_FOR_APPROVAL, S.WITHDRAWN]
-    assert S.SENDING not in user_options(S.APPROVED, C.EMAIL)
+    # Approval steps happen in the Outbox (Phase 12), not through the move buttons.
+    assert user_options(S.READY_TO_APPLY, C.EMAIL) == [S.WITHDRAWN]
+    assert user_options(S.APPROVED, C.EMAIL) == []
+    with pytest.raises(TransitionError, match="Outbox"):
+        check(S.READY_TO_APPLY, S.WAITING_FOR_APPROVAL, channel=C.EMAIL, source=Src.USER)
+    check(S.READY_TO_APPLY, S.WAITING_FOR_APPROVAL, channel=C.EMAIL, source=Src.USER, outbox=True)
 
 
 # ---------- create ----------
@@ -174,16 +178,14 @@ def test_invalid_moves_are_rejected(
     skip_ahead = _move(client, user, portal, "offer")
     email_step = _move(client, user, portal, "waiting_for_approval")
     hand_sent = client.post(f"{API}/applications/{email}/mark-applied", headers=user)
-    _move(client, user, email, "waiting_for_approval")
-    _move(client, user, email, "approved")
-    sending = _move(client, user, email, "sending")
+    outside_outbox = _move(client, user, email, "waiting_for_approval")
 
-    for response in (skip_ahead, email_step, hand_sent, sending):
+    for response in (skip_ahead, email_step, hand_sent, outside_outbox):
         assert response.status_code == 409
         assert response.json()["error"]["code"] == "INVALID_TRANSITION"
     detail = client.get(f"{API}/applications/{email}", headers=user).json()
-    assert detail["status"] == "approved"
-    assert "sending" not in detail["allowed_next"]
+    assert detail["status"] == "ready_to_apply"
+    assert detail["allowed_next"] == ["withdrawn"]
 
 
 def test_documents_lock_after_the_application_went_out(

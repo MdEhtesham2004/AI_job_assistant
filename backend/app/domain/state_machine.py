@@ -28,6 +28,10 @@ TERMINAL = frozenset(status for status, targets in TRANSITIONS.items() if not ta
 SYSTEM_ONLY = frozenset({S.SENDING, S.FAILED})
 # The email approval steps make no sense for portal/referral applications.
 EMAIL_ONLY = frozenset({S.WAITING_FOR_APPROVAL, S.APPROVED, S.SENDING, S.FAILED})
+# Phase 12: drafting, approving and rejecting an email happen in the Outbox, together
+# with the email itself — never as a bare status change.
+OUTBOX_STEPS = frozenset({S.WAITING_FOR_APPROVAL, S.APPROVED, S.REJECTED_BY_USER})
+IN_OUTBOX = frozenset({S.WAITING_FOR_APPROVAL, S.APPROVED})
 
 
 class TransitionError(ValueError):
@@ -40,14 +44,24 @@ def check(
     *,
     channel: ApplicationChannel,
     source: StatusChangeSource,
+    outbox: bool = False,
 ) -> None:
-    """Raise TransitionError unless `current → target` is allowed for this channel/source."""
+    """Raise TransitionError unless `current → target` is allowed for this channel/source.
+
+    `outbox=True` marks changes made by the email service (draft, approve, reject).
+    """
     if target not in TRANSITIONS[current]:
         raise TransitionError(f"An application cannot go from {current.value} to {target.value}.")
     if source is StatusChangeSource.USER and target in SYSTEM_ONLY:
         raise TransitionError(f"{target.value} is set by the email sender, not by hand.")
     if channel is not ApplicationChannel.EMAIL and target in EMAIL_ONLY:
         raise TransitionError(f"{target.value} only applies to email applications.")
+    if (
+        source is StatusChangeSource.USER
+        and not outbox
+        and (target in OUTBOX_STEPS or current in IN_OUTBOX)
+    ):
+        raise TransitionError("Draft, approve or reject the email in the Outbox.")
     if (
         target is S.APPLIED
         and current is S.READY_TO_APPLY

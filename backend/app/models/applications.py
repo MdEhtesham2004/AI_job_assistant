@@ -11,7 +11,7 @@ from app.models.enums import ApplicationChannel, ApplicationStatus, StatusChange
 
 
 class Application(UUIDPrimaryKeyMixin, TimestampMixin, Base):
-    """Phase 0 §5.6 — one application per job per user. contact_id follows in Phase 12."""
+    """Phase 0 §5.6 — one application per job per user."""
 
     __tablename__ = "applications"
 
@@ -38,6 +38,9 @@ class Application(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     )
     cover_letter_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("cover_letters.id", ondelete="SET NULL")
+    )
+    contact_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("contacts.id", ondelete="SET NULL")
     )
     next_action: Mapped[str | None] = mapped_column(Text)
     applied_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

@@ -26,6 +26,7 @@ from app.models.enums import (
     StatusChangeSource,
 )
 from app.models.jobs import Job
+from app.models.outreach import Contact
 from app.models.resumes import ResumeVersion
 from app.repositories.analyses import JobAnalysisRepository
 from app.repositories.applications import (
@@ -35,6 +36,7 @@ from app.repositories.applications import (
 )
 from app.repositories.documents import CoverLetterRepository
 from app.repositories.jobs import JobRepository, UserJobRepository
+from app.repositories.outreach import ContactRepository
 from app.repositories.resumes import ResumeVersionRepository
 from app.services.analysis import active_version
 from app.services.job_export import BOM, safe_cell
@@ -59,6 +61,7 @@ class ApplicationView:
     cover_letter: CoverLetter | None = None
     analysis: JobAnalysis | None = None
     history: Sequence[ApplicationStatusHistory] = ()
+    contact: Contact | None = None
 
     @property
     def options(self) -> list[ApplicationStatus]:
@@ -73,6 +76,7 @@ class ApplicationService:
         self.history = ApplicationHistoryRepository(session, owner_id=user_id)
         self.versions = ResumeVersionRepository(session, owner_id=user_id)
         self.letters = CoverLetterRepository(session, owner_id=user_id)
+        self.contacts = ContactRepository(session, owner_id=user_id)
 
     # ---------- helpers ----------
 
@@ -99,6 +103,12 @@ class ApplicationService:
         if letter is None or letter.job_id != job_id:
             raise ValidationAppError("Choose a cover letter of this job.", code="BAD_COVER_LETTER")
         return letter
+
+    async def _contact(self, contact_id: uuid.UUID) -> Contact:
+        contact = await self.contacts.get(contact_id)
+        if contact is None:
+            raise ValidationAppError("Choose one of your contacts.", code="BAD_CONTACT")
+        return contact
 
     def _record(
         self,
@@ -142,6 +152,9 @@ class ApplicationService:
             else None,
             analysis=analysis,
             history=await self.history.for_application(application.id) if with_history else (),
+            contact=await self.contacts.get(application.contact_id)
+            if application.contact_id
+            else None,
         )
 
     # ---------- commands ----------
@@ -154,6 +167,7 @@ class ApplicationService:
         resume_version_id: uuid.UUID | None,
         cover_letter_id: uuid.UUID | None,
         next_action: str | None,
+        contact_id: uuid.UUID | None = None,
     ) -> Application:
         job = await JobRepository(self.session).visible(job_id, self.user_id)
         if job is None:
@@ -172,6 +186,7 @@ class ApplicationService:
                 self.session, self.user_id
             )
         letter = await self._letter(cover_letter_id, job.id) if cover_letter_id else None
+        contact = await self._contact(contact_id) if contact_id else None
         await UserJobRepository(self.session, owner_id=self.user_id).link(job.id)
         application = await self.applications.add(
             Application(
@@ -180,6 +195,7 @@ class ApplicationService:
                 status=ApplicationStatus.READY_TO_APPLY,
                 resume_version_id=resume.id if resume else None,
                 cover_letter_id=letter.id if letter else None,
+                contact_id=contact.id if contact else None,
                 next_action=(next_action or "").strip() or None,
                 last_status_at=datetime.now(UTC),
             )
@@ -198,9 +214,25 @@ class ApplicationService:
         evidence: dict[str, Any] | None = None,
     ) -> Application:
         application = await self._get(application_id)
+        self.apply(application, target, note=note, source=source, evidence=evidence)
+        await self.session.commit()
+        return application
+
+    def apply(
+        self,
+        application: Application,
+        target: ApplicationStatus,
+        *,
+        note: str | None = None,
+        source: StatusChangeSource = StatusChangeSource.USER,
+        evidence: dict[str, Any] | None = None,
+        outbox: bool = False,
+    ) -> None:
+        """Change the status and add the history row — the caller commits (Phase 12 uses
+        this inside the email transaction, so email and application never disagree)."""
         current = application.status
         try:
-            check(current, target, channel=application.channel, source=source)
+            check(current, target, channel=application.channel, source=source, outbox=outbox)
         except TransitionError as exc:
             raise ConflictError(str(exc), code="INVALID_TRANSITION") from exc
         now = datetime.now(UTC)
@@ -209,8 +241,6 @@ class ApplicationService:
         if target is ApplicationStatus.APPLIED and application.applied_at is None:
             application.applied_at = now
         self._record(application, current, source, note, evidence)
-        await self.session.commit()
-        return application
 
     async def mark_applied(self, application_id: uuid.UUID, note: str | None) -> Application:
         """Portal/referral: the user applied on the company's site (or via a referral)."""
@@ -228,7 +258,12 @@ class ApplicationService:
         application = await self._get(application_id)
         if "next_action" in changes:
             application.next_action = (changes["next_action"] or "").strip() or None
-        document_fields = {"channel", "resume_version_id", "cover_letter_id"} & changes.keys()
+        document_fields = {
+            "channel",
+            "resume_version_id",
+            "cover_letter_id",
+            "contact_id",
+        } & changes.keys()
         if document_fields and application.status not in EDITABLE:
             raise ConflictError(
                 "Resume, cover letter and channel cannot change after the application went out.",
@@ -254,6 +289,9 @@ class ApplicationService:
             application.cover_letter_id = (
                 (await self._letter(letter_id, application.job_id)).id if letter_id else None
             )
+        if "contact_id" in changes:
+            contact_id = changes["contact_id"]
+            application.contact_id = (await self._contact(contact_id)).id if contact_id else None
         await self.session.commit()
         await self.session.refresh(application)
         return application
