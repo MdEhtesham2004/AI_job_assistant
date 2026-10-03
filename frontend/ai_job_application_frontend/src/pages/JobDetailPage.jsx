@@ -18,6 +18,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Dialog } from '@/components/ui/dialog'
 import { Textarea } from '@/components/ui/textarea'
+import { PrepareApplicationCard } from '@/features/applications/components/PrepareApplicationCard'
 import { AnalysisPanel } from '@/features/jobs/components/AnalysisPanel'
 import { DocumentsCard } from '@/features/jobs/components/DocumentsCard'
 import { JobStateBadge, QualityBadge } from '@/features/jobs/components/JobBadges'
@@ -141,6 +142,7 @@ function JobDetail({ job }) {
         </Card>
 
         <div className="flex flex-col gap-6">
+          <PrepareApplicationCard job={job} />
           <AnalysisPanel job={job} />
           <DocumentsCard jobId={job.id} canGenerate={job.description_quality !== 'missing'} />
           <NotesCard job={job} />
