@@ -30,6 +30,7 @@ TASK_QUEUES: dict[str, str] = {
     "contact_discover": "default",
     "email_draft": "ai",
     "email_send": "email",
+    "automation_run": "ai",
 }
 
 

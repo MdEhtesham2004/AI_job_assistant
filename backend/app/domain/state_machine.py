@@ -11,8 +11,9 @@ TRANSITIONS: dict[ApplicationStatus, frozenset[ApplicationStatus]] = {
     S.SENDING: frozenset({S.APPLIED, S.FAILED}),
     S.FAILED: frozenset({S.WAITING_FOR_APPROVAL, S.WITHDRAWN}),
     S.REJECTED_BY_USER: frozenset({S.READY_TO_APPLY}),
+    # FAILED: the email bounced (Phase 13) — system only, like every FAILED.
     S.APPLIED: frozenset(
-        {S.RESPONDED, S.INTERVIEW, S.REJECTED, S.OFFER, S.NO_RESPONSE, S.WITHDRAWN}
+        {S.RESPONDED, S.INTERVIEW, S.REJECTED, S.OFFER, S.NO_RESPONSE, S.WITHDRAWN, S.FAILED}
     ),
     S.RESPONDED: frozenset({S.INTERVIEW, S.REJECTED, S.OFFER, S.WITHDRAWN}),
     S.INTERVIEW: frozenset({S.OFFER, S.REJECTED, S.WITHDRAWN}),

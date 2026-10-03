@@ -1,7 +1,8 @@
 import uuid
+from datetime import UTC, datetime
 from typing import Annotated
 
-from fastapi import APIRouter, Query, Request, status
+from fastapi import APIRouter, Query, Request, Response, status
 
 from app.api.deps import ApprovedUser, DbSession
 from app.models.enums import ContactApproval, ContactSource
@@ -72,6 +73,35 @@ async def list_contacts(
         total=total,
         page=page,
         page_size=page_size,
+    )
+
+
+@router.get(
+    "/contacts/export.csv",
+    response_class=Response,
+    summary="Download your contacts with their jobs as CSV (same filters as the list)",
+    responses={200: {"content": {"text/csv": {}}}},
+)
+async def export_contacts(
+    request: Request,
+    db: DbSession,
+    user: ApprovedUser,
+    approval: ContactApproval | None = None,
+    source: ContactSource | None = None,
+    job_id: uuid.UUID | None = None,
+    q: Annotated[str | None, Query(max_length=100)] = None,
+) -> Response:
+    content = await service(request, db, user).export_csv(
+        ContactFilters(approval=approval, source=source, job_id=job_id, q=q)
+    )
+    name = f"contacts-{datetime.now(UTC):%Y-%m-%d}.csv"
+    return Response(
+        content=content,
+        media_type="text/csv; charset=utf-8",
+        headers={
+            "Content-Disposition": f'attachment; filename="{name}"',
+            "Cache-Control": "private, no-store",
+        },
     )
 
 

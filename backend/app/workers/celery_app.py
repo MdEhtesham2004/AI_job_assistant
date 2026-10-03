@@ -34,5 +34,12 @@ celery_app.conf.update(
             "schedule": 60.0,
             "options": {"queue": "email", "expires": 55},
         },
+        # Phase 13: replies / bounces / follow-ups / no-response. (Automation has no
+        # schedule: it runs only when the user clicks "Automate" — admin decision.)
+        "replies-poll": {
+            "task": "tasks.poll_replies",
+            "schedule": 300.0,
+            "options": {"queue": "default", "expires": 290},
+        },
     },
 )

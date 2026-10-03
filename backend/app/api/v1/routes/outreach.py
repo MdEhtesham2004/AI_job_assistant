@@ -34,6 +34,7 @@ def to_read(view: EmailView, settings: Settings) -> EmailRead:
     email, contact = view.email, view.contact
     return EmailRead(
         id=email.id,
+        email_type=email.email_type,
         status=email.status,
         from_address=email.from_address,
         to_address=email.to_address,
@@ -50,6 +51,10 @@ def to_read(view: EmailView, settings: Settings) -> EmailRead:
             name=contact.name,
             approval=contact.approval,
             verification=contact.verification,
+            source=contact.source,
+            source_url=contact.source_url,
+            source_excerpt=contact.source_excerpt,
+            role_title=contact.role_title,
         )
         if contact
         else None,
@@ -59,6 +64,7 @@ def to_read(view: EmailView, settings: Settings) -> EmailRead:
             job_id=view.job.id,
             job_title=view.job.title,
             company=view.job.company,
+            match_score=view.match_score,
         ),
         attachments=[
             AttachmentRead(
@@ -168,15 +174,23 @@ async def _act(
 async def approve_batch(
     body: ApproveBatch, request: Request, db: DbSession, user: ApprovedUser
 ) -> ApproveBatchRead:
-    result = await service(request, db, user).approve_batch(body.email_ids)
+    result = await service(request, db, user).approve_batch(
+        body.email_ids, approve_contacts=body.approve_contacts
+    )
     return ApproveBatchRead(approved=result.approved, errors=result.errors)
 
 
 @router.post("/emails/{email_id}/approve", response_model=EmailRead, summary="Approve → schedule")
 async def approve_email(
-    email_id: uuid.UUID, request: Request, db: DbSession, user: ApprovedUser
+    email_id: uuid.UUID,
+    request: Request,
+    db: DbSession,
+    user: ApprovedUser,
+    approve_contact: bool = False,
 ) -> EmailRead:
-    return await _act(request, db, user, email_id, "approve")
+    svc = service(request, db, user)
+    email = await svc.approve(email_id, approve_contact=approve_contact)
+    return to_read(await svc.view(email), request.app.state.settings)
 
 
 @router.post("/emails/{email_id}/reject", response_model=EmailRead, summary="Do not send")

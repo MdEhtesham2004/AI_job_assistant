@@ -239,6 +239,49 @@ class EmailRepository(OwnedRepository[Email]):
             or 0
         )
 
+    async def has_reply(self, application_id: uuid.UUID) -> bool:
+        """Did a person answer in this application's thread (bounces do not count)?"""
+        found = await self.session.scalar(
+            select(func.count())
+            .select_from(Email)
+            .where(
+                self._owned(),
+                Email.application_id == application_id,
+                Email.direction == EmailDirection.INBOUND,
+                Email.status == EmailStatus.RECEIVED,
+            )
+        )
+        return bool(found)
+
+    async def inbound_for(self, application_id: uuid.UUID) -> Sequence[Email]:
+        rows = await self.session.scalars(
+            self.scoped()
+            .where(
+                Email.application_id == application_id, Email.direction == EmailDirection.INBOUND
+            )
+            .order_by(Email.received_at, Email.id)
+        )
+        return rows.all()
+
+    async def by_gmail_id(self, gmail_message_id: str) -> Email | None:
+        result: Email | None = await self.session.scalar(
+            self.scoped().where(Email.gmail_message_id == gmail_message_id)
+        )
+        return result
+
+    async def tracked_threads(self, since: datetime) -> dict[str, Email]:
+        """thread id → our sent application email, for threads that may get replies."""
+        rows = await self.session.scalars(
+            self.scoped().where(
+                Email.direction == EmailDirection.OUTBOUND,
+                Email.email_type == EmailType.APPLICATION,
+                Email.status.in_((EmailStatus.SENT, EmailStatus.BOUNCED)),
+                Email.gmail_thread_id.is_not(None),
+                Email.sent_at >= since,
+            )
+        )
+        return {e.gmail_thread_id: e for e in rows.all() if e.gmail_thread_id}
+
     async def last_sent_to(self, address: str, *, exclude: uuid.UUID) -> datetime | None:
         return await self.session.scalar(
             select(func.max(Email.sent_at)).where(

@@ -1,16 +1,19 @@
-"""Phase 12 — Gmail connection, contacts, do-not-contact, emails (Phase 0 §5.1, §5.5, §5.7)."""
+"""Phase 12/13 — Gmail, contacts, do-not-contact, emails, reply classifications (Phase 0 §5)."""
 
 import uuid
 from datetime import datetime
+from decimal import Decimal
 
 from sqlalchemy import (
     ARRAY,
+    Boolean,
     CheckConstraint,
     DateTime,
     ForeignKey,
     Index,
     Integer,
     LargeBinary,
+    Numeric,
     Text,
     UniqueConstraint,
     text,
@@ -28,6 +31,7 @@ from app.models.enums import (
     EmailStatus,
     EmailType,
     OAuthStatus,
+    ReplyCategory,
 )
 
 
@@ -169,8 +173,10 @@ class Email(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     received_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     gmail_message_id: Mapped[str | None] = mapped_column(Text, unique=True)
     gmail_thread_id: Mapped[str | None] = mapped_column(Text)
-    # RFC 5322 Message-ID we set ourselves — lets us find the mail in Gmail after a crash.
+    # Message-ID we set (Gmail replaces it, so it only marks "Gmail was called").
     message_id_header: Mapped[str | None] = mapped_column(Text)
+    # The Message-ID Gmail really used — follow-ups reply to it (In-Reply-To/References).
+    rfc822_message_id: Mapped[str | None] = mapped_column(Text)
     error: Mapped[str | None] = mapped_column(Text)
     model: Mapped[str | None] = mapped_column(Text)
     prompt_version: Mapped[str | None] = mapped_column(Text)
@@ -191,6 +197,36 @@ class Email(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         ),
         Index("ix_emails_user_id_status_scheduled_for", "user_id", "status", "scheduled_for"),
         Index("ix_emails_gmail_thread_id", "gmail_thread_id"),
+    )
+
+
+class ReplyClassification(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+    """AI reading of one inbound reply (Phase 13). One per inbound email."""
+
+    __tablename__ = "reply_classifications"
+
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    email_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("emails.id", ondelete="CASCADE"), nullable=False, unique=True
+    )
+    category: Mapped[ReplyCategory] = mapped_column(
+        text_enum(ReplyCategory, "reply_category"), nullable=False
+    )
+    confidence: Mapped[Decimal] = mapped_column(Numeric(3, 2), nullable=False)
+    summary: Mapped[str] = mapped_column(Text, nullable=False)
+    suggested_action: Mapped[str | None] = mapped_column(Text)
+    applied_transition: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default=text("false")
+    )
+    # NULL = not asked / not answered yet; True/False = the user's answer.
+    user_confirmed: Mapped[bool | None] = mapped_column(Boolean)
+    model: Mapped[str] = mapped_column(Text, nullable=False)
+    prompt_version: Mapped[str] = mapped_column(Text, nullable=False)
+
+    __table_args__ = (
+        CheckConstraint("confidence >= 0 AND confidence <= 1", name="confidence_range"),
     )
 
 

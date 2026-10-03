@@ -2,6 +2,7 @@
 
 from app.workers.handlers import (  # noqa: F401
     analysis,
+    automation,
     diagnostics,
     documents,
     jobs,

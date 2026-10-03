@@ -129,3 +129,20 @@ class AiCall(UUIDPrimaryKeyMixin, CreatedAtMixin, Base):
     success: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
 
     __table_args__ = (Index("ix_ai_calls_user_id_created_at", "user_id", "created_at"),)
+
+
+class AppSettings(TimestampMixin, Base):
+    """Platform-wide switches only an admin may change (one row, id = 1)."""
+
+    __tablename__ = "app_settings"
+
+    id: Mapped[int] = mapped_column(SmallInteger, primary_key=True, default=1)
+    # Phase 13: "Fetch new jobs & automate" calls Apify (paid) — off until an admin allows it.
+    automation_fetch_enabled: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default=text("false")
+    )
+    updated_by_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL")
+    )
+
+    __table_args__ = (CheckConstraint("id = 1", name="single_row"),)

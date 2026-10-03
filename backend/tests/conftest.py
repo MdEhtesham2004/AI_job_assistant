@@ -5,6 +5,7 @@ from pathlib import Path
 import pytest
 from alembic import command
 from alembic.config import Config
+from cryptography.fernet import Fernet
 from fakeredis.aioredis import FakeRedis
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
@@ -48,6 +49,21 @@ def settings(tmp_path_factory: pytest.TempPathFactory) -> Settings:
         # Phase 8: never call the real JSearch from tests.
         jsearch_api_key="test-jsearch-key",
         jsearch_base_url="https://jsearch.test",
+    )
+
+
+@pytest.fixture
+def gmail_settings(settings: Settings) -> Settings:
+    """Phase 12/13: Gmail configured against fake Google endpoints (respx)."""
+    return settings.model_copy(
+        update={
+            "google_client_id": "client-id",
+            "google_client_secret": "client-secret",
+            "token_encryption_key": Fernet.generate_key().decode(),
+            "google_oauth_url": "https://oauth.test",
+            "gmail_api_url": "https://gmail.test",
+            "send_jitter_seconds": 0,
+        }
     )
 
 

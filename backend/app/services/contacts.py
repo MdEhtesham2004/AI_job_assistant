@@ -5,7 +5,9 @@ plus a contact with the post as evidence. Nothing is emailed until the user appr
 contact *and* the email (Phase 12 rule, inherited from the legacy Module 8).
 """
 
+import csv
 import hashlib
+import io
 import uuid
 from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass, field
@@ -42,10 +44,14 @@ from app.models.outreach import Contact, DoNotContact
 from app.models.system import Task
 from app.prompts import outreach as prompts
 from app.prompts.outreach import PostDetails
+from app.repositories.analyses import JobAnalysisRepository
+from app.repositories.applications import ApplicationRepository
 from app.repositories.jobs import JobRepository, UserJobRepository
 from app.repositories.outreach import ContactFilters, ContactRepository, DoNotContactRepository
 from app.repositories.profiles import UserSettingsRepository
 from app.services.ai import AiService
+from app.services.analysis import active_version
+from app.services.job_export import BOM, safe_cell
 from app.services.tasks import TaskDispatcher, TaskService
 
 logger = structlog.get_logger("app.contacts")
@@ -56,6 +62,32 @@ UNKNOWN_COMPANY = "Company not stated"
 
 def known_company(company: str | None) -> str:
     return "" if not company or company == UNKNOWN_COMPANY else company
+
+
+EXPORT_LIMIT = 5000
+DESCRIPTION_MAX = 32_000
+EXPORT_COLUMNS = [
+    ("Email", "email"),
+    ("Name", "name"),
+    ("Contact role", "contact_role"),
+    ("Company", "company"),
+    ("Job title", "job_title"),
+    ("Location", "location"),
+    ("Remote", "remote"),
+    ("Date posted", "posted_at"),
+    ("Match score", "match_score"),
+    ("Approval", "approval"),
+    ("Verification", "verification"),
+    ("Do not contact", "do_not_contact"),
+    ("Application", "application"),
+    ("Applied", "applied_at"),
+    ("Source", "source"),
+    ("Post / source link", "source_url"),
+    ("Evidence", "evidence"),
+    ("Job link", "job_link"),
+    ("Found", "found_at"),
+    ("Description", "description"),
+]
 
 
 # ---------- verification ----------
@@ -386,6 +418,50 @@ class ContactService:
         contact = await self._get(contact_id)
         await self.session.delete(contact)
         await self.session.commit()
+
+    async def export_csv(self, filters: ContactFilters) -> str:
+        """Contacts with their job (Excel-safe CSV: BOM, formulas neutralised)."""
+        rows, _ = await self.contacts.page(filters, limit=EXPORT_LIMIT, offset=0)
+        blocklist = await self.dnc.blocklist()
+        job_ids = [job.id for _, job in rows if job is not None]
+        applications = await ApplicationRepository(self.session, owner_id=self.user_id).by_job_ids(
+            job_ids
+        )
+        version = await active_version(self.session, self.user_id)
+        scores = await JobAnalysisRepository(self.session, owner_id=self.user_id).best_for_jobs(
+            job_ids, version.id if version else None
+        )
+        out = io.StringIO()
+        writer = csv.writer(out, lineterminator="\r\n")
+        writer.writerow([label for label, _ in EXPORT_COLUMNS])
+        for contact, job in rows:
+            application = applications.get(job.id) if job else None
+            score = scores.get(job.id) if job else None
+            values = {
+                "email": contact.email,
+                "name": contact.name,
+                "contact_role": contact.role_title,
+                "company": contact.company or (known_company(job.company) if job else None),
+                "job_title": job.title if job else None,
+                "location": job.location if job else None,
+                "remote": job.is_remote if job else None,
+                "posted_at": job.posted_at if job else None,
+                "match_score": score.match_score if score else None,
+                "approval": contact.approval.value,
+                "verification": contact.verification.value,
+                "do_not_contact": blocklist.blocks(contact.email),
+                "application": application.status.value if application else None,
+                "applied_at": application.applied_at if application else None,
+                "source": contact.source.value,
+                "source_url": contact.source_url,
+                "evidence": contact.source_excerpt,
+                "job_link": job.apply_url if job else None,
+                "found_at": contact.created_at,
+                # Excel keeps at most 32,767 characters per cell.
+                "description": (job.description or "")[:DESCRIPTION_MAX] if job else None,
+            }
+            writer.writerow([safe_cell(values[key]) for _, key in EXPORT_COLUMNS])
+        return BOM + out.getvalue()
 
     async def approved_for_job(self, job_id: uuid.UUID) -> Sequence[Contact]:
         rows, _ = await self.contacts.page(ContactFilters(job_id=job_id), limit=50, offset=0)
