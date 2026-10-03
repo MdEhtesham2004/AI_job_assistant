@@ -74,11 +74,14 @@ def problems(
     company: str,
     title: str,
     lacking: list[str] | None = None,
+    word_range: tuple[int, int] = (MIN_WORDS, MAX_WORDS),
+    aim: str = "200-300",
 ) -> list[str]:
     """Reasons the letter is not acceptable. Empty = OK.
 
     `lacking`: skills the job asks for that the resume does not have (from the match
     analysis). The letter must not claim them — naming the role title does not count.
+    Application emails (Phase 12) use the same checks with a shorter `word_range`.
     """
     found: list[str] = []
     body = body_of(content)
@@ -108,8 +111,8 @@ def problems(
     if title_words and sum(w in words for w in title_words) < math.ceil(len(title_words) * 0.6):
         found.append(f"the role '{title}' is not named")
     count = len(_words(body))
-    if count < MIN_WORDS or count > MAX_WORDS:
-        found.append(f"{count} words (aim for 200-300)")
+    if count < word_range[0] or count > word_range[1]:
+        found.append(f"{count} words (aim for {aim})")
     return found
 
 

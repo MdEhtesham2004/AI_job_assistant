@@ -6,6 +6,8 @@ from pydantic import BaseModel, Field
 from app.models.enums import (
     ApplicationChannel,
     ApplicationStatus,
+    ContactApproval,
+    ContactVerification,
     DocumentStatus,
     ResumeKind,
     StatusChangeSource,
@@ -16,6 +18,7 @@ class ApplicationCreate(BaseModel):
     channel: ApplicationChannel = ApplicationChannel.PORTAL
     resume_version_id: uuid.UUID | None = None  # default: the job's tailored resume, else active
     cover_letter_id: uuid.UUID | None = None
+    contact_id: uuid.UUID | None = None  # email channel: who receives it
     next_action: str | None = Field(default=None, max_length=500)
 
 
@@ -23,6 +26,7 @@ class ApplicationUpdate(BaseModel):
     channel: ApplicationChannel | None = None
     resume_version_id: uuid.UUID | None = None
     cover_letter_id: uuid.UUID | None = None
+    contact_id: uuid.UUID | None = None
     next_action: str | None = Field(default=None, max_length=500)
 
 
@@ -80,9 +84,18 @@ class HistoryEntry(BaseModel):
     created_at: datetime
 
 
+class ContactRef(BaseModel):
+    id: uuid.UUID
+    email: str
+    name: str | None
+    approval: ContactApproval
+    verification: ContactVerification
+
+
 class ApplicationDetail(ApplicationSummary):
     resume: ResumeRef | None
     cover_letter: CoverLetterRef | None
+    contact: ContactRef | None
     history: list[HistoryEntry]
     allowed_next: list[ApplicationStatus]  # what the user may choose now
 

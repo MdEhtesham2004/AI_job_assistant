@@ -21,8 +21,10 @@ from app.core.redis import create_redis
 from app.db.session import create_engine, create_session_factory
 from app.domain.jobs import JobSource
 from app.integrations.ai import AiClient
+from app.integrations.apify import ApifyPostSource, PostSource
 from app.integrations.gotenberg import GotenbergClient
 from app.integrations.jsearch import JSearchSource
+from app.integrations.mail_dns import DnsDomainChecker, DomainChecker
 from app.integrations.storage import Storage, create_storage
 from app.models.enums import NotificationSeverity, TaskStatus
 from app.models.system import Task
@@ -46,6 +48,8 @@ class Services:
     ai: AiClient
     redis: Redis | None = None
     job_source: JobSource | None = None  # None → JSearch
+    post_source: PostSource | None = None  # None → Apify (LinkedIn hiring posts)
+    domain_checker: DomainChecker | None = None  # None → DNS MX lookup
 
     @classmethod
     def from_settings(cls, settings: Settings) -> "Services":
@@ -61,6 +65,14 @@ class Services:
     @property
     def jobs(self) -> JobSource:
         return self.job_source or JSearchSource(self.settings)
+
+    @property
+    def posts(self) -> PostSource:
+        return self.post_source or ApifyPostSource(self.settings)
+
+    @property
+    def domains(self) -> DomainChecker:
+        return self.domain_checker or DnsDomainChecker()
 
 
 @dataclass

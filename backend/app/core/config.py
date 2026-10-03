@@ -96,6 +96,44 @@ class Settings(BaseSettings):
     saved_search_min_interval_minutes: int = 60
     job_page_fetch_timeout_seconds: float = 10.0
 
+    # --- Gmail + outreach (Phase 12) ---
+    google_client_id: str = Field(
+        default="", validation_alias=AliasChoices("GOOGLE_CLIENT_ID", "CLIENT_ID")
+    )
+    google_client_secret: str = Field(
+        default="",
+        repr=False,
+        validation_alias=AliasChoices("GOOGLE_CLIENT_SECRET", "CLIENT_SECRET"),
+    )
+    google_redirect_uri: str = "http://localhost:8000/api/v1/integrations/gmail/callback"
+    # Where the browser goes after the Google consent screen.
+    frontend_url: str = "http://localhost:5173"
+    # Fernet key (urlsafe base64, 32 bytes) for OAuth tokens at rest.
+    token_encryption_key: str = Field(default="", repr=False)
+    gmail_api_url: str = "https://gmail.googleapis.com"
+    google_oauth_url: str = "https://oauth2.googleapis.com"
+    # LinkedIn hiring posts via Apify (harvestapi/linkedin-post-search).
+    apify_token: str = Field(
+        default="", repr=False, validation_alias=AliasChoices("APIFY_TOKEN", "APIFY_API_KEY")
+    )
+    apify_base_url: str = "https://api.apify.com"
+    apify_linkedin_actor: str = "harvestapi~linkedin-post-search"
+    apify_max_posts: int = Field(default=50, ge=1, le=200)
+    apify_timeout_seconds: float = 300.0
+    # Hold sends until this local time when the daily cap was reached.
+    send_window_start_hour: int = 9
+    send_jitter_seconds: int = 30
+
+    @property
+    def gmail_configured(self) -> bool:
+        return bool(
+            self.google_client_id and self.google_client_secret and self.token_encryption_key
+        )
+
+    @property
+    def apify_configured(self) -> bool:
+        return bool(self.apify_token)
+
     @property
     def jsearch_configured(self) -> bool:
         return bool(self.jsearch_api_key)

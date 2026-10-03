@@ -163,3 +163,27 @@ def _decode(token: str, secret_key: str, expected_type: str) -> tuple[uuid.UUID,
         return uuid.UUID(payload["sub"]), payload
     except (ValueError, TypeError) as exc:
         raise InvalidTokenError() from exc
+
+
+OAUTH_STATE_TYPE = "oauth_state"
+
+
+def create_oauth_state(user_id: uuid.UUID, nonce: str, secret_key: str, minutes: int = 10) -> str:
+    """Signed `state` for the Google consent redirect: who started it, and a one-time nonce."""
+    now = datetime.now(UTC)
+    payload = {
+        "sub": str(user_id),
+        "type": OAUTH_STATE_TYPE,
+        "iat": now,
+        "exp": now + timedelta(minutes=minutes),
+        "nonce": nonce,
+    }
+    return jwt.encode(payload, secret_key, algorithm=JWT_ALGORITHM)
+
+
+def decode_oauth_state(token: str, secret_key: str) -> tuple[uuid.UUID, str]:
+    user_id, payload = _decode(token, secret_key, OAUTH_STATE_TYPE)
+    nonce = payload.get("nonce")
+    if not isinstance(nonce, str) or not nonce:
+        raise InvalidTokenError()
+    return user_id, nonce

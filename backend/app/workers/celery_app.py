@@ -2,7 +2,7 @@
 
 Run a worker (Windows needs the solo pool):
     uv run celery -A app.workers.celery_app worker --pool=solo -Q default,ai,pdf,email -l info
-Run the scheduler (saved searches; exactly one beat process):
+Run the scheduler (saved searches, scheduled emails; exactly one beat process):
     uv run celery -A app.workers.celery_app beat -l info
 """
 
@@ -27,6 +27,12 @@ celery_app.conf.update(
             "task": "tasks.dispatch_saved_searches",
             "schedule": 300.0,
             "options": {"queue": "default", "expires": 290},
+        },
+        # Phase 12: approved emails whose send time has come (cap + gap respected).
+        "outbox-due": {
+            "task": "tasks.dispatch_outbox",
+            "schedule": 60.0,
+            "options": {"queue": "email", "expires": 55},
         },
     },
 )

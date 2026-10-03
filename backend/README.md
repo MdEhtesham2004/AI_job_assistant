@@ -183,7 +183,7 @@ ready_to_apply → applied                                                   (po
 applied → responded / interview / no_response → offer | rejected;  any open state → withdrawn
 ```
 
-- People cannot set `sending`/`failed` (the email sender does); approval steps exist only for the email channel; email applications become `applied` only when sent.
+- People cannot set `sending`/`failed` (the email sender does); approval steps exist only for the email channel and happen in the Outbox (Phase 12), never as a bare status change; email applications become `applied` only when sent.
 - Resume, cover letter and channel can change until the application goes out (`APPLICATION_LOCKED` after); the next action can always change.
 - Default resume: the job's tailored version, else the active one.
 
@@ -195,6 +195,30 @@ applied → responded / interview / no_response → offer | rejected;  any open 
 | `GET /api/v1/applications/counts` · `/export.csv` | per-status counts · CSV (Excel-safe) |
 | `GET/PATCH /api/v1/applications/{id}` | detail with timeline + `allowed_next` · edit |
 | `POST /api/v1/applications/{id}/status` · `/mark-applied` | move (409 `INVALID_TRANSITION`) · portal/referral applied |
+
+## Contacts & Gmail outreach (Phase 12)
+
+Needs `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `TOKEN_ENCRYPTION_KEY` (and `APIFY_TOKEN` for LinkedIn) in `.env`, and **Celery Beat running** — it starts scheduled sends every minute (`tasks.dispatch_outbox`).
+
+- **Gmail:** OAuth (scopes `gmail.send` + `gmail.readonly`), tokens Fernet-encrypted in `oauth_accounts`; the `state` is a signed, one-time token (nonce in Redis).
+- **Contacts:** LinkedIn hiring posts via Apify (`"Hiring" AND "<role>" AND "gmail.com"`, setting *LinkedIn hiring posts* must be on) — each post with an email becomes a **private job** (`source = linkedin_post`) plus a **pending** contact with the post URL and excerpt as evidence; or added by hand (approved at once). Syntax + MX check; `invalid` can never be approved; the do-not-contact list (emails and whole domains) always wins.
+- **Emails:** AI draft (`application_email.v1`, same truth checks as cover letters + "mentions the attachment") → edit → approve → scheduled slot (daily cap, gap + jitter, next day 09:00 when the cap is reached) → pre-send checks → Gmail upload API with resume (+ cover letter) attached → application `applied`.
+- **No double send:** one outbound email per (user, application, type) via the unique `idempotency_key`; `queued → sending` is one conditional UPDATE; approving twice is a no-op. A send Gmail did not answer stays `sending` and is reconciled after 5 min by its `Message-ID` (`rfc822msgid:` search).
+
+```text
+email: draft → queued (approved) → sending → sent | failed      draft → rejected
+application: ready_to_apply → waiting_for_approval → approved → sending → applied | failed
+```
+
+| Endpoint | Purpose |
+|---|---|
+| `GET /api/v1/integrations/gmail` · `POST …/connect` · `GET …/callback` · `DELETE` | status · consent URL · Google redirect · disconnect |
+| `GET/POST /api/v1/contacts` · `PATCH/DELETE /contacts/{id}` · `POST /contacts/{id}/verify` | list/add · edit, approve, reject · re-check |
+| `POST /api/v1/contacts/discover` | LinkedIn hiring posts (task) |
+| `GET/POST /api/v1/do-not-contact` · `DELETE /do-not-contact/{id}` | blocked addresses / domains |
+| `POST /api/v1/applications/{id}/email/draft` · `GET …/email` | AI draft (task) · the application's email |
+| `GET /api/v1/outbox?status=…` · `/outbox/summary` | drafts, scheduled, sent, failed · counts + limits |
+| `PUT /api/v1/emails/{id}` · `POST …/approve` · `/reject` · `/cancel` · `/retry` · `POST /emails/approve-batch` | edit draft · actions |
 
 - Health (API + database + migration revision): http://localhost:8000/api/v1/health
 - API docs: http://localhost:8000/api/v1/docs

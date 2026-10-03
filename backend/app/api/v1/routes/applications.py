@@ -15,6 +15,7 @@ from app.schemas.applications import (
     ApplicationJob,
     ApplicationSummary,
     ApplicationUpdate,
+    ContactRef,
     CoverLetterRef,
     HistoryEntry,
     MarkApplied,
@@ -87,6 +88,15 @@ def to_detail(view: ApplicationView, settings: Settings) -> ApplicationDetail:
         )
         if letter
         else None,
+        contact=ContactRef(
+            id=view.contact.id,
+            email=view.contact.email,
+            name=view.contact.name,
+            approval=view.contact.approval,
+            verification=view.contact.verification,
+        )
+        if view.contact
+        else None,
         history=[HistoryEntry.model_validate(entry) for entry in view.history],
         allowed_next=view.options,
     )
@@ -117,6 +127,7 @@ async def create_application(
         resume_version_id=body.resume_version_id,
         cover_letter_id=body.cover_letter_id,
         next_action=body.next_action,
+        contact_id=body.contact_id,
     )
     return to_detail(await svc.view(application), request.app.state.settings)
 

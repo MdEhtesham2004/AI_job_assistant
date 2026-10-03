@@ -4,6 +4,7 @@ Every new user-owned endpoint/repository added in later phases must get a test h
 """
 
 import uuid
+from datetime import UTC, datetime
 
 from fastapi.testclient import TestClient
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -15,12 +16,18 @@ from app.models.enums import (
     AnalysisDecision,
     ApplicationChannel,
     ApplicationStatus,
+    ContactSource,
     DescriptionQuality,
+    DncSource,
+    EmailDirection,
+    EmailStatus,
+    EmailType,
     JobSource,
     ResumeKind,
     StatusChangeSource,
 )
 from app.models.jobs import Job, JobSearchRun, SavedSearch
+from app.models.outreach import Contact, DoNotContact, Email, OAuthAccount
 from app.models.resumes import Resume, ResumeAtsReport, ResumeVersion
 from app.models.system import Task
 from app.repositories.analyses import JobAnalysisRepository
@@ -31,6 +38,14 @@ from app.repositories.jobs import (
     JobSearchRunRepository,
     SavedSearchRepository,
     UserJobRepository,
+)
+from app.repositories.outreach import (
+    ContactFilters,
+    ContactRepository,
+    DoNotContactRepository,
+    EmailRepository,
+    OAuthAccountRepository,
+    OutboxFilters,
 )
 from app.repositories.profiles import ProfileRepository
 from app.repositories.resumes import (
@@ -293,6 +308,61 @@ async def test_applications_and_their_history_are_private(session: AsyncSession)
     assert (await bob_apps.status_counts())["ready_to_apply"] == 0
     bob_history = ApplicationHistoryRepository(session, owner_id=bob.id)
     assert await bob_history.for_application(application.id) == []
+
+
+async def test_gmail_contacts_and_emails_are_private(session: AsyncSession) -> None:
+    """Phase 12. HTTP side: test_outreach.py::test_contacts_and_emails_are_private."""
+    alice, bob = await _two_users(session)
+    job = Job(
+        source=JobSource.JSEARCH,
+        external_id="x5",
+        title="Dev",
+        company="Acme",
+        description_quality=DescriptionQuality.COMPLETE,
+        dedupe_hash="h5",
+    )
+    session.add(job)
+    await session.flush()
+    await OAuthAccountRepository(session, owner_id=alice.id).add(
+        OAuthAccount(
+            provider="google", account_email="a@gmail.com", access_token_enc=b"x", scopes=[]
+        )
+    )
+    contact = await ContactRepository(session, owner_id=alice.id).add(
+        Contact(email="hr@acme.com", source=ContactSource.USER)
+    )
+    await DoNotContactRepository(session, owner_id=alice.id).add(
+        DoNotContact(domain="spam.io", source=DncSource.USER)
+    )
+    application = await ApplicationRepository(session, owner_id=alice.id).add(
+        Application(job_id=job.id, channel=ApplicationChannel.EMAIL)
+    )
+    email = await EmailRepository(session, owner_id=alice.id).add(
+        Email(
+            application_id=application.id,
+            direction=EmailDirection.OUTBOUND,
+            email_type=EmailType.APPLICATION,
+            idempotency_key="k",
+            from_address="a@gmail.com",
+            to_address="hr@acme.com",
+            subject="s",
+            body_text="b",
+            status=EmailStatus.DRAFT,
+        )
+    )
+    await session.commit()
+
+    assert await OAuthAccountRepository(session, owner_id=bob.id).google() is None
+    bob_contacts = ContactRepository(session, owner_id=bob.id)
+    assert await bob_contacts.get(contact.id) is None
+    assert await bob_contacts.by_email("hr@acme.com") is None
+    assert (await bob_contacts.page(ContactFilters(), limit=10, offset=0))[1] == 0
+    assert not (await DoNotContactRepository(session, owner_id=bob.id).blocklist()).domains
+    bob_emails = EmailRepository(session, owner_id=bob.id)
+    assert await bob_emails.get(email.id) is None
+    assert await bob_emails.outbound_for(application.id) is None
+    assert (await bob_emails.outbox(OutboxFilters(), limit=10, offset=0))[1] == 0
+    assert not await bob_emails.claim_for_sending(email.id, datetime.now(UTC))
 
 
 def test_api_profile_and_settings_return_only_your_own(
