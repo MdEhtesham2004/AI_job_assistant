@@ -5,6 +5,7 @@ import { PageHeader } from '@/components/common/PageHeader'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { OUTBOX_TABS } from '@/features/outreach/api'
+import { AutomationCard } from '@/features/outreach/components/AutomationCard'
 import { EmailEditor } from '@/features/outreach/components/EmailEditor'
 import { useApproveBatch, useOutbox, useOutboxSummary } from '@/features/outreach/hooks'
 import { formatDateTime } from '@/lib/format'
@@ -25,8 +26,9 @@ export default function OutboxPage() {
     <>
       <PageHeader
         title="Outbox"
-        description="Application emails: review drafts, approve them, and follow scheduled and sent mail."
+        description="Application emails and follow-ups: review, approve, and follow scheduled and sent mail."
       />
+      <AutomationCard />
 
       {summary && (
         <Card className="mb-4">
@@ -94,7 +96,13 @@ export default function OutboxPage() {
             <Button
               size="sm"
               disabled={selected.length === 0 || approve.isPending}
-              onClick={() => approve.mutate(selected, { onSuccess: () => setSelected([]) })}
+              onClick={() =>
+                // Each card shows the contact's evidence, so this approves new contacts too.
+                approve.mutate(
+                  { ids: selected, approveContacts: true },
+                  { onSuccess: () => setSelected([]) },
+                )
+              }
             >
               Approve selected ({selected.length})
             </Button>

@@ -1,14 +1,16 @@
 import { AlertTriangle, Paperclip } from 'lucide-react'
 import { useState } from 'react'
 
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
+import { MatchScoreBadge } from '@/features/jobs/components/MatchScore'
 import { formatBytes, formatDateTime } from '@/lib/format'
 
 import { useEditEmail, useEmailAction } from '../hooks'
-import { EmailStatusBadge } from './Badges'
+import { EmailStatusBadge, VerificationBadge } from './Badges'
 
 /** One application email: preview / edit while a draft, then its send state. */
 export function EmailEditor({ email }) {
@@ -19,17 +21,49 @@ export function EmailEditor({ email }) {
   const isDraft = email.status === 'draft'
   const dirty = subject !== email.subject || body !== email.body_text
   const busy = edit.isPending || action.isPending
-  const act = (name) => action.mutate({ id: email.id, action: name })
+  // Found by automation / LinkedIn and not approved yet: the evidence is shown right here,
+  // so approving the email approves the contact too.
+  const contactPending = isDraft && email.contact?.approval === 'pending'
+  const act = (name, extra = {}) => action.mutate({ id: email.id, action: name, ...extra })
 
   return (
     <div className="space-y-3 text-sm">
       <div className="flex flex-wrap items-center gap-2">
         <EmailStatusBadge status={email.status} />
+        {email.email_type === 'follow_up_1' && <Badge variant="outline">Follow-up</Badge>}
+        {email.application?.match_score != null && (
+          <MatchScoreBadge score={email.application.match_score} />
+        )}
         <span className="text-muted-foreground">
           From {email.from_address} → <span className="text-foreground">{email.to_address}</span>
           {email.contact?.name ? ` (${email.contact.name})` : ''}
         </span>
       </div>
+
+      {contactPending && (
+        <div className="rounded-md border border-warning/40 bg-warning/5 p-3 text-xs">
+          <p className="mb-1 flex flex-wrap items-center gap-2 font-medium">
+            New contact — not approved yet
+            <VerificationBadge value={email.contact.verification} />
+          </p>
+          {email.contact.role_title && (
+            <p className="text-muted-foreground">{email.contact.role_title}</p>
+          )}
+          {email.contact.source_excerpt && (
+            <blockquote className="mt-1 italic">{email.contact.source_excerpt}</blockquote>
+          )}
+          {email.contact.source_url && (
+            <a
+              href={email.contact.source_url}
+              target="_blank"
+              rel="noreferrer"
+              className="mt-1 inline-block text-primary hover:underline"
+            >
+              View the post
+            </a>
+          )}
+        </div>
+      )}
 
       {isDraft ? (
         <>
@@ -119,8 +153,11 @@ export function EmailEditor({ email }) {
             >
               Save changes
             </Button>
-            <Button disabled={dirty || busy} onClick={() => act('approve')}>
-              Approve &amp; send
+            <Button
+              disabled={dirty || busy || email.contact?.verification === 'invalid'}
+              onClick={() => act('approve', { approveContact: contactPending })}
+            >
+              {contactPending ? 'Approve contact & send' : 'Approve & send'}
             </Button>
             <Button variant="ghost" disabled={busy} onClick={() => act('reject')}>
               Reject
