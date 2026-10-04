@@ -16,7 +16,7 @@ from app.services.saved_searches import dispatch_due_searches
 from app.services.tasks import RecordingDispatcher
 from app.workers.runner import Outcome, run_task
 from tests.fakes import FakeJobSource, fake_services, make_job
-from tests.helpers import db, make_user
+from tests.helpers import db, make_user, set_platform
 
 API = "/api/v1/jobs"
 SAVED = "/api/v1/saved-searches"
@@ -499,12 +499,18 @@ def test_load_more_while_running_returns_the_same_task(
     assert more["task_id"] == started["task_id"]
 
 
-def test_pages_can_be_chosen_up_to_three(
+def test_pages_per_search_follow_the_admin_limit(
     app: FastAPI, client: TestClient, migrated_database: str, settings: Settings, tmp_path: Path
 ) -> None:
     _, user = make_user(client, migrated_database, "a@example.com")
     source = FakeJobSource([make_job(1)])
 
+    # Default: 1 page (10 jobs = one JSearch request) per search.
+    over = client.post(f"{API}/search", json={"keywords": "React", "num_pages": 2}, headers=user)
+    assert over.status_code == 422 and over.json()["error"]["code"] == "TOO_MANY_PAGES"
+    assert "at most 10 jobs" in over.json()["error"]["message"]
+
+    set_platform(migrated_database, jsearch_max_pages=3)
     run = _search_and_run(app, client, settings, tmp_path, user, source, num_pages=3)
     too_many = client.post(
         f"{API}/search", json={"keywords": "React", "num_pages": 4}, headers=user
@@ -513,6 +519,23 @@ def test_pages_can_be_chosen_up_to_three(
     assert (source.queries[0].page, source.queries[0].num_pages) == (1, 3)
     assert run["pages_loaded"] == 3
     assert too_many.status_code == 422
+
+
+def test_load_more_can_be_turned_off_by_the_admin(
+    app: FastAPI, client: TestClient, migrated_database: str, settings: Settings, tmp_path: Path
+) -> None:
+    _, user = make_user(client, migrated_database, "a@example.com")
+    first = _search_and_run(
+        app, client, settings, tmp_path, user, FakeJobSource([make_job(n) for n in range(1, 11)])
+    )
+    assert first["can_load_more"] is True
+
+    set_platform(migrated_database, jsearch_allow_load_more=False)
+
+    run = client.get(f"{API}/searches/{first['id']}", headers=user).json()
+    more = client.post(f"{API}/searches/{first['id']}/more", headers=user)
+    assert run["can_load_more"] is False
+    assert more.status_code == 409 and more.json()["error"]["code"] == "LOAD_MORE_DISABLED"
 
 
 def test_csv_export_follows_filters_and_is_excel_safe(

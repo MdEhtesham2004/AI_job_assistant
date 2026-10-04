@@ -521,7 +521,7 @@ def test_fetch_and_automate_is_locked_until_an_admin_enables_it(
 
     assert locked.status_code == 403 and locked.json()["error"]["code"] == "FETCH_LOCKED"
     assert not_admin.status_code == 403
-    assert enabled == {"automation_fetch_enabled": True} and status["fetch_allowed"] is True
+    assert enabled["automation_fetch_enabled"] is True and status["fetch_allowed"] is True
     assert outcome is Outcome.SUCCEEDED
     assert status["keywords"] == ["React Native"]  # duplicates removed
     run = status["last_run"]["result"]

@@ -2,10 +2,10 @@
 
 import uuid
 from collections.abc import Sequence
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 import structlog
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import Settings
@@ -147,6 +147,15 @@ async def dispatch_due_searches(
             SavedSearch.is_active.is_(True),
             User.is_active.is_(True),
             User.approval_status == ApprovalStatus.APPROVED,
+            # Cost control (Phase 14): pause saved searches of users who stopped visiting.
+            *(
+                [
+                    func.coalesce(User.last_login_at, User.created_at)
+                    >= now - timedelta(days=settings.saved_search_active_days)
+                ]
+                if settings.saved_search_active_days
+                else []
+            ),
         )
     )
     due = [

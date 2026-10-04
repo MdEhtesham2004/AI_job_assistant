@@ -401,30 +401,24 @@ def test_linkedin_posts_become_private_jobs_with_pending_contacts(
     )[0]
     assert visibility == "private"
 
-    # Running it again adds nothing new (same posts, same addresses).
-    respx.post(AI_URL).side_effect = [
-        chat_response(
-            {
-                "is_hiring": True,
-                "job_title": "React Native Developer",
-                "company": "ABC Technologies",
-                "location": "Pune",
-                "contact_name": "Priya",
-            }
-        ),
+    # Running it again adds nothing new (same posts, same addresses). Posts that already
+    # became a job are not sent to the AI again: only the non-hiring post is re-read.
+    ai = respx.post(AI_URL)
+    ai.side_effect = [
         chat_response(
             {"is_hiring": False, "job_title": "", "company": "", "location": "", "contact_name": ""}
         ),
-        chat_response(
-            {"is_hiring": True, "job_title": "", "company": "", "location": "", "contact_name": ""}
-        ),
     ]
+    calls_before = ai.call_count
     again = client.post(
         f"{API}/contacts/discover", json={"keyword": "React Native"}, headers=user
     ).json()
     _work(
         app, settings, again["task_id"], tmp_path, post_source=posts, domain_checker=FakeDomains()
     )
+    second = client.get(f"{API}/tasks/{again['task_id']}", headers=user).json()["result"]
+    assert ai.call_count - calls_before == 1
+    assert second["known_posts"] == 2
     assert client.get(f"{API}/contacts", headers=user).json()["total"] == 1
     assert (
         db(migrated_database, "SELECT count(*) FROM jobs WHERE source = 'linkedin_post'")[0][0] == 2

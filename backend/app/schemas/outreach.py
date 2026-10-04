@@ -1,5 +1,6 @@
 import uuid
 from datetime import datetime
+from decimal import Decimal
 from typing import Literal
 
 from pydantic import BaseModel, Field
@@ -82,7 +83,7 @@ class ContactCounts(BaseModel):
 
 class DiscoverRequest(BaseModel):
     keyword: str = Field(min_length=2, max_length=100)
-    max_posts: int = Field(default=50, ge=5, le=200)
+    max_posts: int = Field(default=25, ge=5, le=200)  # capped by Settings › Platform
     posted_limit: Literal["24h", "week", "month"] = "week"
 
 
@@ -227,6 +228,44 @@ class AutomationRunRequest(BaseModel):
 
 class PlatformSettings(BaseModel):
     automation_fetch_enabled: bool
+    # Cost control (Phase 14): paid calls per user; 0 = unlimited; cache hits never count.
+    jsearch_requests_per_month: int
+    apify_posts_per_month: int  # Apify bills per post returned
+    apify_runs_per_day: int
+    apify_max_posts_per_fetch: int
+    # Find jobs: most pages (10 jobs = 1 JSearch request) per search; "Load more" allowed.
+    jsearch_max_pages: int
+    jsearch_allow_load_more: bool
+
+
+class PlatformUpdate(BaseModel):
+    automation_fetch_enabled: bool | None = None
+    jsearch_requests_per_month: int | None = Field(default=None, ge=0, le=100_000)
+    apify_posts_per_month: int | None = Field(default=None, ge=0, le=1_000_000)
+    apify_runs_per_day: int | None = Field(default=None, ge=0, le=1_000)
+    apify_max_posts_per_fetch: int | None = Field(default=None, ge=5, le=200)
+    jsearch_max_pages: int | None = Field(default=None, ge=1, le=3)
+    jsearch_allow_load_more: bool | None = None
+
+
+class QuotaRead(BaseModel):
+    used: int
+    limit: int  # 0 = unlimited
+    left: int | None
+
+
+class UsageRead(BaseModel):
+    jsearch_month: QuotaRead  # requests (1 per results page)
+    apify_month: QuotaRead  # LinkedIn posts (Apify bills per post)
+    apify_today: QuotaRead  # LinkedIn fetches
+    resets_at: datetime
+    cached_hits_month: int  # searches answered from the shared cache (free)
+    ai_spent_month_usd: Decimal
+    ai_budget_usd: Decimal
+    # Find jobs limits set by the admin.
+    max_jobs_per_search: int
+    max_posts_per_fetch: int
+    load_more_allowed: bool
 
 
 class ApproveBatchRead(BaseModel):

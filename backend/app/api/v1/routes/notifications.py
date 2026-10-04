@@ -1,5 +1,5 @@
 import uuid
-from typing import Annotated
+from typing import Annotated, Literal
 
 from fastapi import APIRouter, Query, status
 
@@ -16,11 +16,12 @@ async def list_notifications(
     db: DbSession,
     user: ApprovedUser,
     unread_only: bool = False,
+    category: Literal["email", "replies", "jobs", "tasks", "other"] | None = None,
     page: Annotated[int, Query(ge=1)] = 1,
     page_size: Annotated[int, Query(ge=1, le=50)] = 10,
 ) -> Page[NotificationRead]:
     items, total = await NotificationService(db, user.id).list(
-        unread_only=unread_only, page=page, page_size=page_size
+        unread_only=unread_only, page=page, page_size=page_size, category=category
     )
     return Page(
         items=[NotificationRead.model_validate(n) for n in items],

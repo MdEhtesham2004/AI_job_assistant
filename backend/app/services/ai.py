@@ -11,6 +11,20 @@ from app.models.system import AiCall
 from app.repositories.ai_calls import AiCallRepository
 from app.repositories.profiles import UserSettingsRepository
 
+# Output ceilings per task (Phase 14). Generous: gpt-oss counts its (low) reasoning tokens
+# here too, and a cut-off answer is invalid JSON (= retry = more cost). Unlisted tasks use
+# AI_MAX_OUTPUT_TOKENS. Typical real outputs today are 100-650 tokens.
+TASK_MAX_TOKENS: dict[str, int] = {
+    "linkedin_post": 1500,
+    "reply_classify": 1500,
+    "follow_up": 2000,
+    "job_analyze": 3000,
+    "application_email": 3000,
+    "cover_letter": 4000,
+    "resume_ats": 4000,
+    "resume_linkedin": 4000,
+}
+
 
 def month_start(now: datetime | None = None) -> datetime:
     now = now or datetime.now(UTC)
@@ -53,7 +67,12 @@ class AiService:
         # End the transaction: no database connection is held open while the AI answers.
         await self.session.commit()
         try:
-            result = await self.client.complete_json(messages=messages, output=output, model=model)
+            result = await self.client.complete_json(
+                messages=messages,
+                output=output,
+                model=model,
+                max_tokens=TASK_MAX_TOKENS.get(task_type),
+            )
         except ExternalServiceError:
             self.session.add(
                 AiCall(

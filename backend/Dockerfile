@@ -18,7 +18,8 @@ COPY app ./app
 COPY alembic.ini ./
 COPY migrations ./migrations
 
-RUN useradd --create-home --uid 1000 appuser && chown -R appuser /app
+# Files (resumes, PDFs) live in a volume mounted here (STORAGE_LOCAL_PATH=/app/storage).
+RUN useradd --create-home --uid 1000 appuser && mkdir -p /app/storage && chown -R appuser /app
 USER appuser
 
 EXPOSE 8000

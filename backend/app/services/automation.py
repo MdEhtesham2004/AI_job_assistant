@@ -61,7 +61,6 @@ from app.services.tasks import TaskDispatcher, TaskService
 logger = structlog.get_logger("app.automation")
 
 Mode = Literal["saved", "fetch"]
-POSTS_PER_KEYWORD = 25
 MAX_KEYWORDS = 5
 HIDDEN_STATES = (UserJobState.SKIPPED, UserJobState.ARCHIVED)
 
@@ -224,7 +223,8 @@ async def run_pipeline(
                     checker=tools.domains,
                     user_id=user_id,
                     keyword=keyword,
-                    max_posts=POSTS_PER_KEYWORD,
+                    # Settings › Platform "Most posts per fetch", like a manual fetch.
+                    max_posts=(await app_settings(session)).apify_max_posts_per_fetch,
                     posted_limit=user_settings.automation_posted_limit,  # type: ignore[arg-type]
                     progress=_noop,
                 )

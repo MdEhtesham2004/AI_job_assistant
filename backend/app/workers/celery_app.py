@@ -9,8 +9,10 @@ Run the scheduler (saved searches, scheduled emails; exactly one beat process):
 from celery import Celery
 
 from app.core.config import get_settings
+from app.core.monitoring import init_sentry
 
 settings = get_settings()
+init_sentry(settings, component="worker")  # no-op without SENTRY_DSN
 
 celery_app = Celery("ai_job_platform", broker=settings.redis_url, include=["app.workers.tasks"])
 celery_app.conf.update(

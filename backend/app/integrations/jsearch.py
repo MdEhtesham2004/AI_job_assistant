@@ -28,6 +28,8 @@ class JSearchSource:
 
     def __init__(self, settings: Settings) -> None:
         self.settings = settings
+        # RapidAPI's "requests left on the plan" after the last call (cost control).
+        self.last_quota_remaining: int | None = None
 
     def params(self, query: JobQuery) -> dict[str, str]:
         params = {
@@ -81,6 +83,8 @@ class JSearchSource:
                 "JSearch returned an error.",
                 details={"provider": "jsearch", "status": response.status_code},
             )
+        remaining = response.headers.get("x-ratelimit-requests-remaining")
+        self.last_quota_remaining = int(remaining) if remaining and remaining.isdigit() else None
         jobs = [job for item in _items(response.json()) if (job := normalize(item))]
         logger.info(
             "jsearch.results",

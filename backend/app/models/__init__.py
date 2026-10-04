@@ -14,7 +14,7 @@ from app.models.outreach import (
     ReplyClassification,
 )
 from app.models.resumes import Resume, ResumeAtsReport, ResumeVersion
-from app.models.system import AiCall, AppSettings, AuditLog, Notification, Task
+from app.models.system import AiCall, AppSettings, AuditLog, Notification, ProviderCall, Task
 
 __all__ = [
     "AiCall",
@@ -35,6 +35,7 @@ __all__ = [
     "Notification",
     "OAuthAccount",
     "Profile",
+    "ProviderCall",
     "ReplyClassification",
     "Resume",
     "ResumeAtsReport",

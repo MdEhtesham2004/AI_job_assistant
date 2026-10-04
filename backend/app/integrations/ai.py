@@ -69,6 +69,7 @@ class AiClient:
         output: type[OutputT],
         model: str | None = None,
         use_cache: bool = True,
+        max_tokens: int | None = None,
     ) -> AiResult[OutputT]:
         if not self.settings.ai_configured:
             raise ExternalServiceError("No AI API key is configured.", code="AI_NOT_CONFIGURED")
@@ -89,7 +90,9 @@ class AiClient:
         input_tokens = output_tokens = 0
         cost = Decimal(0)
         for attempt in range(2):
-            body = await self._post(model, attempt_messages, output.__name__, schema)
+            body = await self._post(
+                model, attempt_messages, output.__name__, schema, max_tokens=max_tokens
+            )
             usage = body.get("usage") or {}
             input_tokens += int(usage.get("prompt_tokens") or 0)
             output_tokens += int(usage.get("completion_tokens") or 0)
@@ -130,14 +133,23 @@ class AiClient:
         )
 
     async def _post(
-        self, model: str, messages: list[Message], name: str, schema: dict[str, Any]
+        self,
+        model: str,
+        messages: list[Message],
+        name: str,
+        schema: dict[str, Any],
+        *,
+        max_tokens: int | None = None,
     ) -> dict[str, Any]:
         payload: dict[str, Any] = {
             "model": model,
             "messages": messages,
             "temperature": 0.2,
-            # A model stuck in a loop must not generate forever.
-            "max_tokens": self.settings.ai_max_output_tokens,
+            # A model stuck in a loop must not generate forever; small tasks get a lower cap.
+            "max_tokens": min(
+                max_tokens or self.settings.ai_max_output_tokens,
+                self.settings.ai_max_output_tokens,
+            ),
             "response_format": {
                 "type": "json_schema",
                 "json_schema": {"name": name, "strict": True, "schema": schema},

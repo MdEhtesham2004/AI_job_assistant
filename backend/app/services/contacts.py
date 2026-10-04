@@ -53,6 +53,7 @@ from app.services.ai import AiService
 from app.services.analysis import active_version
 from app.services.job_export import BOM, safe_cell
 from app.services.tasks import TaskDispatcher, TaskService
+from app.services.usage import app_settings
 
 logger = structlog.get_logger("app.contacts")
 
@@ -136,6 +137,7 @@ class DiscoveryResult:
     jobs: int = 0
     new_contacts: int = 0
     known_contacts: int = 0
+    known_posts: int = 0  # seen before: no AI call made for them
     blocked: int = 0
     job_ids: list[str] = field(default_factory=list)
     stopped: str | None = None
@@ -153,6 +155,10 @@ def _short(value: str) -> str:
     return text if len(text) <= TITLE_CHARS else text[: TITLE_CHARS - 1].rsplit(" ", 1)[0] + "…"
 
 
+def _post_external_id(user_id: uuid.UUID, post: LinkedInPost) -> str:
+    return hashlib.sha256(f"{user_id}|{post.post_id}".encode()).hexdigest()
+
+
 async def _post_job(
     session: AsyncSession,
     user_id: uuid.UUID,
@@ -162,7 +168,7 @@ async def _post_job(
 ) -> Job:
     """The post as a private job of this user (stored once per user and post)."""
     jobs = JobRepository(session)
-    external_id = hashlib.sha256(f"{user_id}|{post.post_id}".encode()).hexdigest()
+    external_id = _post_external_id(user_id, post)
     job = await jobs.by_external_id(JobSource.LINKEDIN_POST, external_id)
     if job is None:
         title = _short(details.job_title) or keyword
@@ -219,7 +225,15 @@ async def discover_linkedin(
     with_email = [(post, find_emails(post.text)) for post in posts]
     result.without_email = sum(1 for _, emails in with_email if not emails)
     candidates = [(post, emails) for post, emails in with_email if emails]
+    jobs = JobRepository(session)
     for index, (post, emails) in enumerate(candidates):
+        # Seen before (same user, same post): its job and contacts exist — no AI call.
+        known = await jobs.by_external_id(JobSource.LINKEDIN_POST, _post_external_id(user_id, post))
+        if known is not None:
+            result.known_posts += 1
+            result.known_contacts += len(emails)
+            result.job_ids.append(str(known.id))
+            continue
         try:
             details = (
                 await AiService(session, ai).complete_json(
@@ -482,6 +496,14 @@ class ContactService:
         if not user_settings.linkedin_source_enabled:
             raise ConflictError(
                 "Turn on 'LinkedIn hiring posts' in Settings first.", code="LINKEDIN_DISABLED"
+            )
+        # Cost control (Phase 14): Apify bills per post; the admin caps posts per fetch.
+        cap = (await app_settings(self.session)).apify_max_posts_per_fetch
+        if max_posts > cap:
+            raise ValidationAppError(
+                f"A LinkedIn fetch can read at most {cap} posts.",
+                code="TOO_MANY_POSTS",
+                details={"max_posts": cap},
             )
         return await TaskService(self.session, self.user_id, self.dispatcher).create(
             "contact_discover",

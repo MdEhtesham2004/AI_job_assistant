@@ -144,5 +144,68 @@ class AppSettings(TimestampMixin, Base):
     updated_by_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL")
     )
+    # Cost control (Phase 14): paid calls per user. 0 = unlimited. Cache hits never count.
+    jsearch_requests_per_month: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=60, server_default=text("60")
+    )
+    # Apify bills per post returned: the monthly allowance is in posts.
+    apify_posts_per_month: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=300, server_default=text("300")
+    )
+    apify_runs_per_day: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=3, server_default=text("3")
+    )
+    # Contacts › Find LinkedIn posts (and automation): most posts one fetch may return.
+    apify_max_posts_per_fetch: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=25, server_default=text("25")
+    )
+    # Find jobs: most JSearch pages (10 jobs = 1 billed request each) one search may fetch.
+    jsearch_max_pages: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=1, server_default=text("1")
+    )
+    jsearch_allow_load_more: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=True, server_default=text("true")
+    )
 
-    __table_args__ = (CheckConstraint("id = 1", name="single_row"),)
+    __table_args__ = (
+        CheckConstraint("id = 1", name="single_row"),
+        CheckConstraint(
+            "jsearch_requests_per_month >= 0 AND apify_posts_per_month >= 0 "
+            "AND apify_runs_per_day >= 0",
+            name="quotas_non_negative",
+        ),
+        CheckConstraint("jsearch_max_pages BETWEEN 1 AND 3", name="jsearch_max_pages_range"),
+        CheckConstraint(
+            "apify_max_posts_per_fetch BETWEEN 5 AND 200", name="apify_max_posts_range"
+        ),
+    )
+
+
+class ProviderCall(UUIDPrimaryKeyMixin, CreatedAtMixin, Base):
+    """One call to a paid data API (JSearch, Apify) — or a cache hit that avoided one.
+
+    Feeds the per-user quotas and Admin › Analytics. `units` is what the provider bills:
+    JSearch requests (1 per page), Apify posts returned.
+    """
+
+    __tablename__ = "provider_calls"
+
+    user_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL")
+    )
+    provider: Mapped[str] = mapped_column(Text, nullable=False)  # jsearch | apify
+    cache_key: Mapped[str] = mapped_column(Text, nullable=False)
+    query: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
+    cached: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    success: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    units: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    results: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    cost_usd: Mapped[Decimal] = mapped_column(Numeric(10, 4), nullable=False, default=Decimal(0))
+    latency_ms: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    quota_remaining: Mapped[int | None] = mapped_column(Integer)  # JSearch plan, from headers
+    error: Mapped[str | None] = mapped_column(Text)
+
+    __table_args__ = (
+        Index("ix_provider_calls_user_id_provider_created_at", "user_id", "provider", "created_at"),
+        Index("ix_provider_calls_provider_created_at", "provider", "created_at"),
+    )

@@ -7,8 +7,14 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api.v1.router import api_router
 from app.core.config import Settings, get_settings
 from app.core.errors import register_exception_handlers
+from app.core.hardening import (
+    ApiRateLimitMiddleware,
+    BodySizeLimitMiddleware,
+    SecurityHeadersMiddleware,
+)
 from app.core.logging import configure_logging
 from app.core.middleware import REQUEST_ID_HEADER, RequestContextMiddleware
+from app.core.monitoring import init_sentry
 from app.core.rate_limit import SlidingWindowRateLimiter
 from app.core.redis import create_redis
 from app.db.session import create_engine, create_session_factory
@@ -36,6 +42,7 @@ def create_dispatcher(settings: Settings) -> TaskDispatcher:
 def create_app(settings: Settings | None = None) -> FastAPI:
     settings = settings or get_settings()
     configure_logging(settings.log_level, settings.log_json)
+    init_sentry(settings, component="api")
 
     prefix = settings.api_prefix
     app = FastAPI(
@@ -66,6 +73,19 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
         expose_headers=[REQUEST_ID_HEADER],
+    )
+    # Phase 14 hardening (inner → outer: size limit, rate limit, security headers).
+    app.add_middleware(BodySizeLimitMiddleware, max_bytes=settings.max_request_bytes)
+    app.add_middleware(
+        ApiRateLimitMiddleware,
+        # Tests make many requests from one client; the middleware has its own tests.
+        per_minute=0 if settings.app_env == "test" else settings.api_rate_limit_per_minute,
+        limiter=SlidingWindowRateLimiter(),
+    )
+    app.add_middleware(
+        SecurityHeadersMiddleware,
+        api_prefix=prefix,
+        hsts=settings.app_env == "production",
     )
     # Added last so it is the outermost user middleware and sees every request.
     app.add_middleware(RequestContextMiddleware)

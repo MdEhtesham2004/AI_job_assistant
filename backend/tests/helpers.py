@@ -47,6 +47,19 @@ def set_status(url: str, email: str, approval: str = "approved", active: bool = 
     )
 
 
+def set_platform(url: str, **values: object) -> None:
+    """Set Settings › Platform values. Tests truncate every table (app_settings too): upsert."""
+    cols = ", ".join(values)
+    params = ", ".join(f":{c}" for c in values)
+    updates = ", ".join(f"{c} = EXCLUDED.{c}" for c in values)
+    db(
+        url,
+        f"INSERT INTO app_settings (id, {cols}) VALUES (1, {params}) "
+        f"ON CONFLICT (id) DO UPDATE SET {updates}",
+        **values,
+    )
+
+
 def make_user(
     client: TestClient,
     url: str,

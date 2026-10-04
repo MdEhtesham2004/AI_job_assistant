@@ -7,7 +7,7 @@ from dataclasses import dataclass, replace
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import Settings
-from app.core.errors import ConflictError, NotFoundError
+from app.core.errors import ConflictError, NotFoundError, ValidationAppError
 from app.domain.jobs import classify_description
 from app.models.analysis import JobAnalysis
 from app.models.enums import DescriptionQuality, JobSource, SearchRunStatus, UserJobState
@@ -27,6 +27,7 @@ from app.schemas.jobs import MAX_PAGES_PER_SEARCH, JobSearchRequest, JobUpdate
 from app.services.analysis import active_version
 from app.services.job_export import to_csv
 from app.services.tasks import TaskDispatcher, TaskService
+from app.services.usage import app_settings
 
 RUN_ENTITY = "job_search_run"
 JOB_ENTITY = "job"
@@ -37,9 +38,11 @@ def pages_loaded(run: JobSearchRun) -> int:
     return int(run.query.get("pages_loaded") or 0)
 
 
-def can_load_more(run: JobSearchRun) -> bool:
+def can_load_more(run: JobSearchRun, *, allowed: bool = True) -> bool:
+    """`allowed`: the admin's "Allow Load more" switch (Settings › Platform)."""
     return (
-        run.status is SearchRunStatus.SUCCEEDED
+        allowed
+        and run.status is SearchRunStatus.SUCCEEDED
         and not run.query.get("exhausted")
         and pages_loaded(run) < MAX_PAGES_PER_SEARCH
     )
@@ -94,6 +97,16 @@ class JobService:
     async def start_search(
         self, request: JobSearchRequest, *, saved_search_id: uuid.UUID | None = None
     ) -> tuple[JobSearchRun, Task]:
+        # Cost control (Phase 14): the admin caps the pages (10 jobs = 1 request) per search.
+        max_pages = (await app_settings(self.session)).jsearch_max_pages
+        if request.num_pages > max_pages:
+            if saved_search_id is None:
+                raise ValidationAppError(
+                    f"A search can fetch at most {max_pages * 10} jobs.",
+                    code="TOO_MANY_PAGES",
+                    details={"max_pages": max_pages},
+                )
+            request = request.model_copy(update={"num_pages": max_pages})  # scheduled run
         query = request.model_dump(mode="json") | {"pages_loaded": 0, "exhausted": False}
         run = await self.runs.add(
             JobSearchRun(source=JobSource.JSEARCH, query=query, saved_search_id=saved_search_id)
@@ -112,6 +125,11 @@ class JobService:
             running = await TaskRepository(self.session, owner_id=self.user_id).get(run.task_id)
             if running is not None:
                 return run, running  # already loading
+        if not (await app_settings(self.session)).jsearch_allow_load_more:
+            raise ConflictError(
+                "Loading more results is turned off by the admin. Try a more specific search.",
+                code="LOAD_MORE_DISABLED",
+            )
         if not can_load_more(run):
             raise ConflictError(
                 "There are no more results for this search.", code="NO_MORE_RESULTS"
