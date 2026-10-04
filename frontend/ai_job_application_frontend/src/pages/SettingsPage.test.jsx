@@ -103,6 +103,48 @@ describe('SettingsPage', () => {
     })
   })
 
+  it('lets an admin change the per-user search limits', async () => {
+    const PLATFORM = {
+      automation_fetch_enabled: false,
+      jsearch_requests_per_month: 60,
+      apify_posts_per_month: 300,
+      apify_max_posts_per_fetch: 25,
+      apify_runs_per_day: 3,
+      jsearch_max_pages: 1,
+      jsearch_allow_load_more: true,
+    }
+    const fetchMock = mockApi({
+      'GET /users/me/settings': SETTINGS,
+      'GET /integrations/gmail': { configured: true, connected: false },
+      'GET /admin/platform': PLATFORM,
+      'PATCH /admin/platform': (_url, init) =>
+        jsonResponse({ ...PLATFORM, ...JSON.parse(init.body) }),
+    })
+    renderWithProviders(<SettingsPage />, { auth: makeAuth({ user: makeUser({ role: 'admin' }) }) })
+
+    const save = await screen.findByRole('button', { name: 'Save limits' })
+    expect(save).toBeDisabled() // nothing changed yet
+    const field = screen.getByLabelText('Job-search requests per user / month')
+    await userEvent.clear(field)
+    await userEvent.type(field, '100')
+    await userEvent.selectOptions(screen.getByLabelText('Most jobs per search'), '2')
+    await userEvent.selectOptions(screen.getByLabelText('Most posts per LinkedIn fetch'), '50')
+    await userEvent.click(screen.getByRole('checkbox', { name: /Allow “Load more”/ }))
+    await userEvent.click(save)
+
+    await vi.waitFor(() => {
+      const patch = fetchMock.mock.calls.find(
+        ([url, init]) => String(url).endsWith('/admin/platform') && init?.method === 'PATCH',
+      )
+      expect(JSON.parse(patch[1].body)).toEqual({
+        jsearch_requests_per_month: 100,
+        jsearch_max_pages: 2,
+        jsearch_allow_load_more: false,
+        apify_max_posts_per_fetch: 50,
+      })
+    })
+  })
+
   it('does not show platform switches to normal users', async () => {
     mockApi({ 'GET /users/me/settings': SETTINGS })
     renderWithProviders(<SettingsPage />)

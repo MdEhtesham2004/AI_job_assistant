@@ -9,6 +9,12 @@ import JobSearchPage from './JobSearchPage'
 
 afterEach(() => vi.unstubAllGlobals())
 
+const USAGE = {
+  jsearch_month: { used: 3, limit: 60, left: 57 },
+  max_jobs_per_search: 20,
+  load_more_allowed: true,
+}
+
 describe('JobSearchPage', () => {
   it('fills the form from a suggested role and shows the results', async () => {
     const fetchMock = mockApi({
@@ -18,6 +24,7 @@ describe('JobSearchPage', () => {
         hint: null,
       },
       'GET /jobs/searches': [],
+      'GET /usage': USAGE,
       'POST /jobs/search': { task_id: 't1', run_id: 'r1' },
       'GET /jobs/searches/r1': {
         ...makeRun({ results_count: 2, new_jobs_count: 1, can_load_more: true }),
@@ -77,5 +84,18 @@ describe('JobSearchPage', () => {
 
     expect(await screen.findByText('Enter at least 2 characters.')).toBeInTheDocument()
     expect(fetchMock.mock.calls.some(([, init]) => init?.method === 'POST')).toBe(false)
+  })
+
+  it('only offers as many results as the admin allows', async () => {
+    mockApi({
+      'GET /jobs/suggested-roles': { roles: [], location: null, hint: null },
+      'GET /jobs/searches': [],
+      'GET /usage': USAGE,
+    })
+    renderWithProviders(<JobSearchPage />)
+
+    expect(await screen.findByText(/57 of 60 left this month/)).toBeInTheDocument()
+    const options = screen.getAllByRole('option', { name: /requests?\)/ }).map((o) => o.value)
+    expect(options).toEqual(['1', '2'])
   })
 })

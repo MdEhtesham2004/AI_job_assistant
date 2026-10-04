@@ -1,5 +1,9 @@
 import {
   Activity,
+  BarChart3,
+  Bell,
+  FileUp,
+  ScrollText,
   Radar,
   BellRing,
   Briefcase,
@@ -34,6 +38,7 @@ export const navigation = [
       { to: '/jobs', label: 'Jobs', icon: Briefcase, end: true },
       { to: '/jobs/scan', label: 'Scan', icon: Radar },
       { to: '/jobs/saved', label: 'Saved searches', icon: BellRing },
+      { to: '/jobs/import', label: 'Import', icon: FileUp },
       { to: '/applications', label: 'Applications', icon: ClipboardList },
     ],
   },
@@ -47,6 +52,7 @@ export const navigation = [
   {
     title: 'Account',
     items: [
+      { to: '/notifications', label: 'Notifications', icon: Bell },
       { to: '/profile', label: 'Profile', icon: UserRound },
       { to: '/settings', label: 'Settings', icon: Settings },
     ],
@@ -56,6 +62,8 @@ export const navigation = [
     adminOnly: true,
     items: [
       { to: '/admin/users', label: 'Users', icon: Users, badge: 'pendingUsers' },
+      { to: '/admin/analytics', label: 'Analytics', icon: BarChart3 },
+      { to: '/admin/audit', label: 'Audit log', icon: ScrollText },
       { to: '/admin/system', label: 'System', icon: Activity },
     ],
   },

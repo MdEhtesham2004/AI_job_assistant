@@ -55,6 +55,15 @@ export const queryKeys = {
     forApplication: (id) => ['emails', 'application', id],
     replies: (id) => ['emails', 'replies', id],
   },
+  dashboard: {
+    summary: () => ['dashboard', 'summary'],
+  },
+  usage: () => ['usage'],
+  admin_insights: {
+    audit: (filters) => ['admin-insights', 'audit', filters],
+    analytics: () => ['admin-insights', 'analytics'],
+    errors: () => ['admin-insights', 'errors'],
+  },
   automation: {
     status: () => ['automation', 'status'],
     platform: () => ['automation', 'platform'],

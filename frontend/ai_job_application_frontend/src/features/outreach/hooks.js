@@ -108,7 +108,7 @@ export function useDiscoverContacts() {
   })
   const task = useFollow(
     mutation.data?.task_id ?? null,
-    [queryKeys.contacts.all(), queryKeys.jobs.all()],
+    [queryKeys.contacts.all(), queryKeys.jobs.all(), queryKeys.usage()],
     (finished) => {
       const r = finished.result ?? {}
       toast.success(
@@ -255,14 +255,17 @@ export function useUpdatePlatform() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: automationApi.updatePlatform,
-    onSuccess: (saved) => {
+    onSuccess: (saved, changes) => {
       queryClient.setQueryData(queryKeys.automation.platform(), saved)
       queryClient.invalidateQueries({ queryKey: queryKeys.automation.status() })
-      toast.success(
-        saved.automation_fetch_enabled
-          ? '"Fetch new jobs & automate" is now available.'
-          : '"Fetch new jobs & automate" is locked.',
-      )
+      queryClient.invalidateQueries({ queryKey: queryKeys.usage() })
+      if (!('automation_fetch_enabled' in changes)) toast.success('Usage limits saved.')
+      else
+        toast.success(
+          saved.automation_fetch_enabled
+            ? '"Fetch new jobs & automate" is now available.'
+            : '"Fetch new jobs & automate" is locked.',
+        )
     },
     onError: (error) => toast.error(error.message),
   })

@@ -20,6 +20,7 @@ import {
 } from '@/features/jobs/api'
 import { RunStatusBadge } from '@/features/jobs/components/JobBadges'
 import { SavedSearchDialog } from '@/features/jobs/components/SavedSearchDialog'
+import { useUsage } from '@/features/dashboard/api'
 import { SearchRunResults } from '@/features/jobs/components/SearchRunResults'
 import { useRecentSearches, useStartSearch, useSuggestedRoles } from '@/features/jobs/hooks'
 import { searchSchema, toSearchBody } from '@/features/jobs/schemas'
@@ -32,6 +33,11 @@ export default function JobSearchPage() {
   const start = useStartSearch()
   const roles = useSuggestedRoles()
   const recent = useRecentSearches()
+  const usage = useUsage()
+  // The admin caps the pages per search (Settings › Platform); 1 page while loading.
+  const maxPages = (usage.data?.max_jobs_per_search ?? 10) / 10
+  const pageOptions = PAGE_OPTIONS.filter((option) => option.value <= maxPages)
+  const quota = usage.data?.jsearch_month
   const {
     register,
     handleSubmit,
@@ -122,14 +128,15 @@ export default function JobSearchPage() {
                 <div className="flex flex-col gap-1.5">
                   <Label htmlFor="search-pages">Results</Label>
                   <Select id="search-pages" {...register('num_pages', { valueAsNumber: true })}>
-                    {PAGE_OPTIONS.map((option) => (
+                    {pageOptions.map((option) => (
                       <option key={option.value} value={option.value}>
                         {option.label}
                       </option>
                     ))}
                   </Select>
                   <p className="text-xs text-muted-foreground">
-                    More pages use more of your JSearch quota.
+                    Each page is one job-search request
+                    {quota?.limit ? ` · ${quota.left} of ${quota.limit} left this month` : ''}.
                   </p>
                 </div>
                 <FormField

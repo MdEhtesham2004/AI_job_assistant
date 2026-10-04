@@ -69,9 +69,9 @@ export const EXPERIENCE_OPTIONS = [
 ]
 
 export const PAGE_OPTIONS = [
-  { value: 1, label: '1 page (~10 jobs)' },
-  { value: 2, label: '2 pages (~20 jobs)' },
-  { value: 3, label: '3 pages (~30 jobs)' },
+  { value: 1, label: '~10 jobs (1 request)' },
+  { value: 2, label: '~20 jobs (2 requests)' },
+  { value: 3, label: '~30 jobs (3 requests)' },
 ]
 
 export const DATE_POSTED_OPTIONS = [
