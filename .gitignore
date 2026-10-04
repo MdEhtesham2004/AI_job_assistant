@@ -2,6 +2,10 @@
 .env
 .env.*
 !.env.example
+!.env.prod.example
+
+# Production backups (database dumps + files) — local to the server
+backups/
 
 # OS / editors
 .DS_Store
