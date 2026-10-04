@@ -8,6 +8,7 @@ from app.models.enums import NotificationSeverity
 from app.services.contacts import discover_linkedin
 from app.services.notifications import notify
 from app.services.outreach import EmailSender, generate_draft
+from app.services.usage import Meter, MeteredPostSource
 from app.workers.runner import TaskContext, handler
 
 
@@ -30,7 +31,11 @@ async def contact_discover(ctx: TaskContext) -> dict[str, Any]:
     result = await discover_linkedin(
         ctx.session,
         ai=ctx.services.ai,
-        source=ctx.services.posts,
+        # Shared cache + per-user quota + usage log (Phase 14 cost control).
+        source=MeteredPostSource(
+            Meter(ctx.session, ctx.services.settings, ctx.services.redis, owner),
+            ctx.services.posts,
+        ),
         checker=ctx.services.domains,
         user_id=owner,
         keyword=str(payload["keyword"]),

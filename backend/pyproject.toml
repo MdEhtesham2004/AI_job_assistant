@@ -25,6 +25,7 @@ dependencies = [
     "croniter>=6.2.4",
     "cryptography>=50.0.2",
     "dnspython>=2.8.0",
+    "sentry-sdk[celery,fastapi]>=2.71.0",
 ]
 
 [dependency-groups]

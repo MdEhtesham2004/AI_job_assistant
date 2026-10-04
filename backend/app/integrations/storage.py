@@ -33,6 +33,12 @@ class Storage(Protocol):
 
     async def delete(self, key: str) -> None: ...
 
+    async def list_prefix(self, prefix: str) -> list[str]:
+        """Keys under `prefix` (e.g. `users/<id>/`)."""
+
+    async def delete_prefix(self, prefix: str) -> int:
+        """Delete every file under `prefix`; returns how many."""
+
     async def check(self) -> None:
         """Raise if the backend cannot store and read a file."""
 
@@ -76,6 +82,41 @@ class LocalStorage:
     async def delete(self, key: str) -> None:
         path = self._path(key)
         await asyncio.to_thread(lambda: path.unlink(missing_ok=True))
+
+    def _folder(self, prefix: str) -> Path:
+        folder = self._path(prefix.rstrip("/"))
+        return folder
+
+    async def list_prefix(self, prefix: str) -> list[str]:
+        folder = self._folder(prefix)
+
+        def walk() -> list[str]:
+            if not folder.is_dir():
+                return []
+            return sorted(
+                path.relative_to(self.root).as_posix()
+                for path in folder.rglob("*")
+                if path.is_file()
+            )
+
+        return await asyncio.to_thread(walk)
+
+    async def delete_prefix(self, prefix: str) -> int:
+        folder = self._folder(prefix)
+
+        def remove() -> int:
+            if not folder.is_dir():
+                return 0
+            files = [p for p in folder.rglob("*") if p.is_file()]
+            for path in files:
+                path.unlink(missing_ok=True)
+            for path in sorted(folder.rglob("*"), reverse=True):  # empty folders, deepest first
+                if path.is_dir():
+                    path.rmdir()
+            folder.rmdir()
+            return len(files)
+
+        return await asyncio.to_thread(remove)
 
     async def check(self) -> None:
         key = f"healthcheck/{uuid.uuid4().hex}.txt"

@@ -242,6 +242,16 @@ Celery Beat runs `tasks.poll_replies` every 5 minutes. Automation has **no sched
 | `POST /api/v1/replies/{id}/confirm` `{accept}` | confirm / dismiss an unsure reading |
 | `POST /api/v1/emails/{id}/approve?approve_contact=true` · `approve-batch {approve_contacts}` | approve a pending contact with its email |
 
+## Dashboard, admin insights, account data, import, hardening (Phase 14)
+
+- **Dashboard** `GET /api/v1/dashboard`: stage counts use the Applications board groups (so both pages agree); interviews/offers/rejected count applications that *ever* reached them (timeline); response rate by job source and resume kind; recent activity.
+- **Notification centre** `GET /api/v1/notifications?category=email|replies|jobs|tasks|other&unread_only=`.
+- **Admin** `GET /api/v1/admin/audit` · `/admin/analytics` · `/admin/errors` · `POST /admin/system/test-error` (monitoring check).
+- **Account** `GET /api/v1/users/me/export` (ZIP: JSON per table + stored files, no secrets) · `POST /users/me/delete` `{password, confirm_email}` (last admin refused, Gmail revoked, files removed, audited).
+- **Legacy import** `POST /api/v1/imports/legacy` (CSV of the old job list or LinkedIn Leads; headers matched loosely; idempotent; lead contacts *pending*).
+- **Hardening**: security headers (CSP on JSON, HSTS in production), `MAX_REQUEST_BYTES` (10 MB), per-IP `API_RATE_LIMIT_PER_MINUTE` (600), optional Sentry (`SENTRY_DSN`; tokens, cookies and bodies scrubbed).
+- **Production**: `docker-compose.prod.yml`, `docker-compose.https.yml`, `scripts/backup.sh` / `scripts/restore.sh` — see `../DEPLOYMENT.md`.
+
 - Health (API + database + migration revision): http://localhost:8000/api/v1/health
 - API docs: http://localhost:8000/api/v1/docs
 

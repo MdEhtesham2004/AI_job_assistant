@@ -8,7 +8,8 @@ from app.core.errors import NotFoundError
 from app.integrations.ai import AiClient
 from app.models.enums import ActorType
 from app.models.outreach import ReplyClassification
-from app.models.system import AuditLog
+from app.models.system import AppSettings, AuditLog
+from app.repositories.ai_calls import AiCallRepository
 from app.repositories.applications import ApplicationRepository
 from app.repositories.outreach import EmailRepository
 from app.repositories.profiles import UserSettingsRepository
@@ -17,11 +18,15 @@ from app.schemas.outreach import (
     AutomationRunRequest,
     AutomationStatus,
     PlatformSettings,
+    PlatformUpdate,
+    QuotaRead,
     ReplyClassificationRead,
     ReplyConfirm,
     ReplyRead,
+    UsageRead,
 )
 from app.schemas.tasks import TaskCreated
+from app.services.ai import month_start
 from app.services.automation import (
     app_settings,
     fetch_allowed,
@@ -32,6 +37,7 @@ from app.services.automation import (
     start_run,
 )
 from app.services.replies import ReplyTracker
+from app.services.usage import Quota, user_usage
 
 router = APIRouter(tags=["automation"])
 
@@ -83,34 +89,91 @@ async def run_now(
 # ---------- platform settings (admin) ----------
 
 
+QUOTA_FIELDS = (
+    "jsearch_requests_per_month",
+    "apify_posts_per_month",
+    "apify_runs_per_day",
+    "apify_max_posts_per_fetch",
+    "jsearch_max_pages",
+    "jsearch_allow_load_more",
+)
+
+
+def _platform(row: AppSettings) -> PlatformSettings:
+    return PlatformSettings(
+        automation_fetch_enabled=row.automation_fetch_enabled,
+        **{name: getattr(row, name) for name in QUOTA_FIELDS},
+    )
+
+
 @router.get("/admin/platform", response_model=PlatformSettings, summary="Platform switches (admin)")
 async def get_platform(admin: AdminUser, db: DbSession) -> PlatformSettings:
     row = await app_settings(db)
     await db.commit()
-    return PlatformSettings(automation_fetch_enabled=row.automation_fetch_enabled)
+    return _platform(row)
 
 
 @router.patch(
     "/admin/platform", response_model=PlatformSettings, summary="Change platform switches (admin)"
 )
 async def update_platform(
-    body: PlatformSettings, admin: AdminUser, db: DbSession
+    body: PlatformUpdate, admin: AdminUser, db: DbSession
 ) -> PlatformSettings:
     row = await app_settings(db)
-    if row.automation_fetch_enabled != body.automation_fetch_enabled:
-        row.automation_fetch_enabled = body.automation_fetch_enabled
-        row.updated_by_id = admin.id
+
+    def audit(action: str, data: dict[str, object]) -> None:
         db.add(
             AuditLog(
                 user_id=admin.id,
                 actor_type=ActorType.ADMIN,
-                action="platform.automation_fetch",
+                action=action,
                 entity_type="app_settings",
-                data={"enabled": body.automation_fetch_enabled},
+                data=data,
             )
         )
+
+    enabled = body.automation_fetch_enabled
+    if enabled is not None and row.automation_fetch_enabled != enabled:
+        row.automation_fetch_enabled = enabled
+        audit("platform.automation_fetch", {"enabled": enabled})
+    quotas = {
+        name: value
+        for name in QUOTA_FIELDS
+        if (value := getattr(body, name)) is not None and value != getattr(row, name)
+    }
+    if quotas:
+        for name, value in quotas.items():
+            setattr(row, name, value)
+        audit("platform.quotas", quotas)
+    if enabled is not None or quotas:
+        row.updated_by_id = admin.id
     await db.commit()
-    return PlatformSettings(automation_fetch_enabled=row.automation_fetch_enabled)
+    return _platform(row)
+
+
+@router.get("/usage", response_model=UsageRead, summary="Your paid-API and AI usage this month")
+async def my_usage(db: DbSession, user: ApprovedUser) -> UsageRead:
+    usage = await user_usage(db, user.id)
+    platform = await app_settings(db)
+    user_settings = await UserSettingsRepository(db, owner_id=user.id).get_or_create()
+    spent = await AiCallRepository(db).cost_since(user.id, month_start())
+    await db.commit()
+
+    def quota(q: Quota) -> QuotaRead:
+        return QuotaRead(used=q.used, limit=q.limit, left=q.left)
+
+    return UsageRead(
+        jsearch_month=quota(usage.jsearch_month),
+        apify_month=quota(usage.apify_month),
+        apify_today=quota(usage.apify_today),
+        resets_at=usage.resets_at,
+        cached_hits_month=usage.cached_hits_month,
+        ai_spent_month_usd=spent,
+        ai_budget_usd=user_settings.monthly_ai_budget_usd,
+        max_jobs_per_search=platform.jsearch_max_pages * 10,
+        load_more_allowed=platform.jsearch_allow_load_more,
+        max_posts_per_fetch=platform.apify_max_posts_per_fetch,
+    )
 
 
 # ---------- replies ----------

@@ -124,6 +124,18 @@ async def test_ai_client_returns_validated_output_with_usage(settings: Settings)
 
 
 @respx.mock
+async def test_ai_client_uses_a_lower_output_cap_but_never_a_higher_one(settings: Settings) -> None:
+    route = respx.post(COMPLETIONS).mock(return_value=chat_response({"ok": True, "message": "hi"}))
+    client = AiClient(settings)
+
+    await client.complete_json(messages=MESSAGES, output=Answer, max_tokens=1500, use_cache=False)
+    assert json.loads(route.calls.last.request.content)["max_tokens"] == 1500
+    await client.complete_json(messages=MESSAGES, output=Answer, max_tokens=10**6, use_cache=False)
+    sent = json.loads(route.calls.last.request.content)
+    assert sent["max_tokens"] == settings.ai_max_output_tokens
+
+
+@respx.mock
 async def test_ai_client_retries_once_on_invalid_json(settings: Settings) -> None:
     route = respx.post(COMPLETIONS).mock(
         side_effect=[

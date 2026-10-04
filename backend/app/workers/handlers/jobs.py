@@ -12,6 +12,7 @@ from app.models.jobs import JobSearchRun, SavedSearch
 from app.repositories.jobs import JobRepository, JobSearchRunRepository
 from app.services.job_catalog import store_results
 from app.services.notifications import notify
+from app.services.usage import Meter, MeteredJobSource
 from app.workers.runner import TaskContext, handler
 
 
@@ -60,8 +61,12 @@ async def job_search(ctx: TaskContext) -> dict[str, Any]:
     # First run: pages 1..num_pages. "Load more": the payload names the next page.
     page = int(ctx.task.payload.get("page") or 1)
     num_pages = int(ctx.task.payload.get("num_pages") or run.query.get("num_pages") or 1)
+    # Shared cache + per-user quota + usage log (Phase 14 cost control).
+    source = MeteredJobSource(
+        Meter(ctx.session, settings, ctx.services.redis, owner), ctx.services.jobs
+    )
     try:
-        items = await ctx.services.jobs.search(_query(run, page, num_pages))
+        items = await source.search(_query(run, page, num_pages))
     except AppError as exc:
         retrying = (
             isinstance(exc, ExternalServiceError) and ctx.task.attempts <= settings.task_max_retries

@@ -2,14 +2,17 @@ from fastapi import APIRouter
 
 from app.api.v1.routes import (
     admin,
+    admin_insights,
     admin_system,
     applications,
     auth,
     automation,
     contacts,
+    dashboard,
     documents,
     files,
     health,
+    imports,
     integrations,
     jobs,
     notifications,
@@ -32,6 +35,9 @@ api_router.include_router(contacts.router)
 api_router.include_router(outreach.router)
 api_router.include_router(integrations.router)
 api_router.include_router(automation.router)
+api_router.include_router(dashboard.router)
+api_router.include_router(admin_insights.router)
+api_router.include_router(imports.router)
 api_router.include_router(saved_searches.router)
 api_router.include_router(tasks.router)
 api_router.include_router(notifications.router)

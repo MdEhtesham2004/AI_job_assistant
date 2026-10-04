@@ -12,6 +12,8 @@ import getpass
 import os
 import sys
 
+from pydantic import EmailStr, TypeAdapter, ValidationError
+
 from app.core.config import get_settings
 from app.core.errors import AppError
 from app.db.session import create_engine, create_session_factory
@@ -28,7 +30,21 @@ def _read_password() -> str:
     return password
 
 
+def _check_email(email: str) -> str | None:
+    """The same rule as sign-in (EmailStr): an address sign-in rejects (e.g. *.test, found in
+    Phase 14) must not be created here, or the admin could never log in."""
+    try:
+        return str(TypeAdapter(EmailStr).validate_python(email))
+    except ValidationError:
+        return None
+
+
 async def _create_admin(email: str, full_name: str, password: str) -> int:
+    checked = _check_email(email)
+    if checked is None:
+        print(f"Error: {email!r} is not an address you can sign in with.", file=sys.stderr)
+        return 1
+    email = checked
     settings = get_settings()
     engine = create_engine(settings)
     try:

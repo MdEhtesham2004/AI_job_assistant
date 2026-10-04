@@ -124,6 +124,31 @@ class Settings(BaseSettings):
     send_window_start_hour: int = 9
     send_jitter_seconds: int = 30
 
+    # --- Paid data APIs: cost control (Phase 14) ---
+    # Identical searches within this window reuse stored results (shared by all users).
+    jsearch_cache_hours: float = Field(default=12, ge=0)
+    apify_cache_hours: float = Field(default=24, ge=0)
+    # A keyword fetched (for real) this recently is searched for the last 24 h only.
+    apify_recent_hours: float = Field(default=48, ge=0)
+    # Optional Apify spending cap per run (pay-per-event actors; 0 = no cap sent).
+    apify_max_charge_usd: float = Field(default=0, ge=0)
+    # Price estimates for Admin › Analytics (your plan's prices; 0 = show units only).
+    jsearch_cost_per_request_usd: float = Field(default=0, ge=0)
+    apify_cost_per_1000_posts_usd: float = Field(default=0, ge=0)
+    # Admins are notified when the JSearch plan has fewer requests left than this.
+    jsearch_quota_alert_below: int = Field(default=25, ge=0)
+    # Saved searches only run for users seen in the last N days (0 = always).
+    saved_search_active_days: int = Field(default=14, ge=0)
+
+    # --- Production hardening (Phase 14) ---
+    # Requests per minute per client IP for the whole API (0 = off).
+    api_rate_limit_per_minute: int = Field(default=600, ge=0)
+    # Largest request body accepted (resumes and CSV imports are 5 MB).
+    max_request_bytes: int = Field(default=10 * 1024 * 1024, ge=0)
+    # Error monitoring: active only when a DSN is set.
+    sentry_dsn: str = Field(default="", repr=False)
+    sentry_traces_sample_rate: float = Field(default=0.0, ge=0, le=1)
+
     @property
     def gmail_configured(self) -> bool:
         return bool(

@@ -34,6 +34,7 @@ from app.schemas.jobs import (
 from app.schemas.tasks import TaskCreated
 from app.services.analysis import AnalysisService
 from app.services.jobs import JobService, JobView, can_load_more, pages_loaded
+from app.services.usage import app_settings
 
 router = APIRouter(prefix="/jobs", tags=["jobs"])
 
@@ -98,7 +99,7 @@ async def search(
     return JobSearchStarted(task_id=task.id, run_id=run.id)
 
 
-def to_run(run: JobSearchRun) -> SearchRunRead:
+def to_run(run: JobSearchRun, *, load_more: bool = True) -> SearchRunRead:
     return SearchRunRead(
         id=run.id,
         saved_search_id=run.saved_search_id,
@@ -111,7 +112,7 @@ def to_run(run: JobSearchRun) -> SearchRunRead:
         created_at=run.created_at,
         finished_at=run.finished_at,
         pages_loaded=pages_loaded(run),
-        can_load_more=can_load_more(run),
+        can_load_more=can_load_more(run, allowed=load_more),
     )
 
 
@@ -120,7 +121,8 @@ async def recent_searches(
     request: Request, db: DbSession, user: ApprovedUser
 ) -> list[SearchRunRead]:
     runs = await service(request, db, user).recent_runs()
-    return [to_run(run) for run in runs]
+    allowed = (await app_settings(db)).jsearch_allow_load_more
+    return [to_run(run, load_more=allowed) for run in runs]
 
 
 @router.post(
@@ -141,8 +143,9 @@ async def search_detail(
     run_id: uuid.UUID, request: Request, db: DbSession, user: ApprovedUser
 ) -> SearchRunDetail:
     run, results = await service(request, db, user).run_detail(run_id)
+    allowed = (await app_settings(db)).jsearch_allow_load_more
     return SearchRunDetail(
-        **to_run(run).model_dump(),
+        **to_run(run, load_more=allowed).model_dump(),
         jobs=[
             SearchResultJob(**to_summary(view).model_dump(), is_new=is_new)
             for view, is_new in results

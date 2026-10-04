@@ -147,3 +147,10 @@ class SettingsUpdate(BaseModel):
             if clean and clean.lower() not in [s.lower() for s in seen]:
                 seen.append(clean)
         return seen
+
+
+class DeleteAccount(BaseModel):
+    """Phase 14: both are required, so an account is never deleted by one click."""
+
+    password: Annotated[str, Field(min_length=1, max_length=200)]
+    confirm_email: Annotated[str, Field(min_length=3, max_length=254)]

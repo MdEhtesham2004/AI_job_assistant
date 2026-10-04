@@ -35,6 +35,14 @@ async def test_failure(request: Request, admin: AdminUser, db: DbSession) -> Tas
 
 
 @router.post(
+    "/test-error",
+    summary="Raise an unexpected error (checks error monitoring: Sentry / logs)",
+)
+async def test_error(admin: AdminUser) -> None:
+    raise RuntimeError("Test error from Admin › System (monitoring check)")
+
+
+@router.post(
     "/test-ai",
     response_model=TaskCreated,
     status_code=status.HTTP_202_ACCEPTED,

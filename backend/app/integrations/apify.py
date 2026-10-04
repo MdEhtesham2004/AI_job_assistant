@@ -99,11 +99,17 @@ class ApifyPostSource:
             "postedLimit": posted_limit,
             "sortBy": "date",
         }
+        # Hard ceilings for one run (cost control): never more items than asked for, and
+        # optionally a maximum charge in USD (pay-per-event actors).
+        params: dict[str, str] = {"maxItems": str(max_posts)}
+        if self.settings.apify_max_charge_usd > 0:
+            params["maxTotalChargeUsd"] = str(self.settings.apify_max_charge_usd)
         try:
             async with httpx.AsyncClient(timeout=self.settings.apify_timeout_seconds) as client:
                 response = await client.post(
                     url,
                     json=payload,
+                    params=params,
                     headers={"Authorization": f"Bearer {self.settings.apify_token}"},
                 )
         except httpx.HTTPError as exc:
