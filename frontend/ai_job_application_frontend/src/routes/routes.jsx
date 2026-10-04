@@ -1,6 +1,10 @@
 import { AppLayout } from '@/layouts/AppLayout'
 import { AuthLayout } from '@/layouts/AuthLayout'
 import AdminUsersPage from '@/pages/admin/AdminUsersPage'
+import AnalyticsPage from '@/pages/admin/AnalyticsPage'
+import AuditLogPage from '@/pages/admin/AuditLogPage'
+import ImportPage from '@/pages/ImportPage'
+import NotificationsPage from '@/pages/NotificationsPage'
 import ApplicationDetailPage from '@/pages/ApplicationDetailPage'
 import ApplicationsPage from '@/pages/ApplicationsPage'
 import AwaitingApprovalPage from '@/pages/AwaitingApprovalPage'
@@ -83,7 +87,11 @@ export const routes = [
           { path: 'profile', element: <ProfilePage /> },
           { path: 'settings', element: <SettingsPage /> },
           { path: 'account/password', element: <ChangePasswordPage /> },
+          { path: 'notifications', element: <NotificationsPage /> },
+          { path: 'jobs/import', element: <ImportPage /> },
           { path: 'admin/users', element: admin(<AdminUsersPage />) },
+          { path: 'admin/audit', element: admin(<AuditLogPage />) },
+          { path: 'admin/analytics', element: admin(<AnalyticsPage />) },
           { path: 'admin/system', element: admin(<SystemStatusPage />) },
           { path: '*', element: <NotFoundPage /> },
         ],

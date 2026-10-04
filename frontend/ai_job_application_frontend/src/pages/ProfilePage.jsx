@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
 import { Select } from '@/components/ui/select'
+import { AccountDataCard } from '@/features/account/AccountDataCard'
 import { accountApi } from '@/features/account/api'
 import { useProfile, useUpdateProfile } from '@/features/account/hooks'
 import { nameSchema, profileSchema, timeZones } from '@/features/account/schemas'
@@ -176,6 +177,7 @@ export default function ProfilePage() {
             {profile.data && <ProfileForm profile={profile.data} />}
           </CardContent>
         </Card>
+        <AccountDataCard />
       </div>
     </>
   )

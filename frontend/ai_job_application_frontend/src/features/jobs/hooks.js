@@ -80,6 +80,7 @@ export function useSearchRun(id) {
         queryClient.invalidateQueries({ queryKey: queryKeys.jobs.lists() })
         queryClient.invalidateQueries({ queryKey: queryKeys.jobs.counts() })
         queryClient.invalidateQueries({ queryKey: queryKeys.jobs.searches() })
+        queryClient.invalidateQueries({ queryKey: queryKeys.usage() }) // requests left
       }
       return run
     },

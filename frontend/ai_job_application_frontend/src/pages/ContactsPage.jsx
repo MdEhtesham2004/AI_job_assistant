@@ -28,6 +28,7 @@ import { Label } from '@/components/ui/label'
 import { Select } from '@/components/ui/select'
 import { useSettings } from '@/features/account/hooks'
 import { applicationsApi } from '@/features/applications/api'
+import { useUsage } from '@/features/dashboard/api'
 import { SOURCE_LABELS } from '@/features/outreach/api'
 import { ApprovalBadge, VerificationBadge } from '@/features/outreach/components/Badges'
 import {
@@ -149,7 +150,15 @@ function LinkedInSearch() {
   const discover = useDiscoverContacts()
   const [keyword, setKeyword] = useState('')
   const [postedLimit, setPostedLimit] = useState('week')
-  const [maxPosts, setMaxPosts] = useState(50)
+  const [chosenPosts, setMaxPosts] = useState(25)
+  // Apify bills per post: the admin caps posts per fetch (Settings › Platform).
+  const usage = useUsage()
+  const cap = usage.data?.max_posts_per_fetch ?? 25
+  const postChoices = [...new Set([10, 25, 50, 100, cap])]
+    .filter((n) => n <= cap)
+    .sort((a, b) => a - b)
+  const maxPosts = Math.min(Number(chosenPosts), cap)
+  const postsLeft = usage.data?.apify_month
   const enabled = settings?.linkedin_source_enabled
   const result = discover.task?.status === 'succeeded' ? discover.task.result : null
 
@@ -203,7 +212,7 @@ function LinkedInSearch() {
             onChange={(e) => setMaxPosts(e.target.value)}
             disabled={!enabled}
           >
-            {[20, 50, 100].map((n) => (
+            {postChoices.map((n) => (
               <option key={n} value={n}>
                 {n} posts
               </option>
@@ -217,6 +226,12 @@ function LinkedInSearch() {
             Search
           </Button>
         </form>
+        {postsLeft?.limit > 0 && (
+          <p className="text-xs text-muted-foreground">
+            {postsLeft.left} of {postsLeft.limit} LinkedIn posts left this month. A keyword someone
+            fetched in the last day is reused for free.
+          </p>
+        )}
         {discover.running && discover.task && (
           <div className="space-y-1">
             <ProgressBar value={discover.task.progress} status={discover.task.status} />

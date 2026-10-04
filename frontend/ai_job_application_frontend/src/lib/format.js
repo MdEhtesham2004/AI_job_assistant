@@ -39,3 +39,12 @@ export function formatDateTime(value) {
   const date = value instanceof Date ? value : new Date(value)
   return Number.isNaN(date.getTime()) ? '—' : dateTimeFormatter.format(date)
 }
+
+const dateFormatter = new Intl.DateTimeFormat(undefined, { day: 'numeric', month: 'short' })
+
+/** "1 Nov": a day without the time; '—' when empty. */
+export function formatDate(value) {
+  if (value === null || value === undefined || value === '') return '—'
+  const date = value instanceof Date ? value : new Date(value)
+  return Number.isNaN(date.getTime()) ? '—' : dateFormatter.format(date)
+}

@@ -1,34 +1,48 @@
-# Rendered by the nginx image at start-up (envsubst): ${BACKEND_URL} → e.g. http://api:8000
-# HTTP server. With HTTPS (docker-compose.https.yml) port 80 only redirects — see https.conf.
+# HTTPS (used by docker-compose.https.yml instead of default.conf.template).
+# ${SERVER_NAME} = your domain; certificates from Let's Encrypt (see DEPLOYMENT.md).
 
-# Phase 14: per-IP request budget for the API (burst for page loads); auth has its own limits.
 limit_req_zone $binary_remote_addr zone=api:10m rate=20r/s;
 
+# Port 80: certificate challenges + redirect everything else to HTTPS.
 server {
     listen 80;
-    server_name _;
+    server_name ${SERVER_NAME};
+    server_tokens off;
+
+    location /.well-known/acme-challenge/ {
+        root /var/www/certbot;
+    }
+    location / {
+        return 301 https://$host$request_uri;
+    }
+}
+
+server {
+    listen 443 ssl;
+    http2 on;
+    server_name ${SERVER_NAME};
+    server_tokens off;
+
+    ssl_certificate /etc/letsencrypt/live/${SERVER_NAME}/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/${SERVER_NAME}/privkey.pem;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_prefer_server_ciphers off;
+    ssl_session_cache shared:SSL:10m;
+    ssl_session_timeout 1d;
 
     root /usr/share/nginx/html;
     index index.html;
-    server_tokens off;
-
-    # Resumes and CSV imports are at most 5 MB.
     client_max_body_size 6m;
 
     gzip on;
     gzip_types text/plain text/css application/javascript application/json image/svg+xml;
 
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
     add_header X-Content-Type-Options nosniff always;
     add_header X-Frame-Options DENY always;
     add_header Referrer-Policy strict-origin-when-cross-origin always;
     add_header Permissions-Policy "camera=(), microphone=(), geolocation=()" always;
 
-    # Let's Encrypt HTTP-01 challenge (certbot --webroot)
-    location /.well-known/acme-challenge/ {
-        root /var/www/certbot;
-    }
-
-    # API → FastAPI backend
     location /api/ {
         limit_req zone=api burst=60 nodelay;
         limit_req_status 429;
@@ -37,18 +51,16 @@ server {
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-Proto https;
         proxy_read_timeout 120s;
     }
 
-    # Hashed build assets can be cached for a long time
     location /assets/ {
         expires 1y;
         add_header Cache-Control "public, immutable";
         try_files $uri =404;
     }
 
-    # Single-page app: unknown paths serve index.html (React Router handles them)
     location / {
         add_header Cache-Control "no-cache";
         try_files $uri $uri/ /index.html;

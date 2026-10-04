@@ -9,6 +9,13 @@ export function Dialog({ open, onClose, title, description, children, className 
   const titleId = useId()
   const descriptionId = useId()
   const panelRef = useRef(null)
+  // Keep the latest onClose without re-running the effect: callers usually pass an inline
+  // arrow, and re-running moved the focus back to the first field on every keystroke
+  // (found in Phase 14: typing a password jumped to the email field).
+  const onCloseRef = useRef(onClose)
+  useEffect(() => {
+    onCloseRef.current = onClose
+  }, [onClose])
 
   useEffect(() => {
     if (!open) return undefined
@@ -17,13 +24,13 @@ export function Dialog({ open, onClose, title, description, children, className 
       'input, textarea, select, button:not([data-dialog-close])',
     )
     focusable?.focus()
-    const onKeyDown = (event) => event.key === 'Escape' && onClose()
+    const onKeyDown = (event) => event.key === 'Escape' && onCloseRef.current()
     document.addEventListener('keydown', onKeyDown)
     return () => {
       document.removeEventListener('keydown', onKeyDown)
       previous?.focus?.()
     }
-  }, [open, onClose])
+  }, [open])
 
   if (!open) return null
 

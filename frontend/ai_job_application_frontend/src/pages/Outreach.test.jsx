@@ -168,6 +168,10 @@ describe('ContactsPage', () => {
       'GET /contacts/counts': { counts: { pending: 0, approved: 0, rejected: 0 }, total: 0 },
       'GET /do-not-contact': [],
       'GET /users/me/settings': { linkedin_source_enabled: true },
+      'GET /usage': {
+        apify_month: { used: 100, limit: 300, left: 200 },
+        max_posts_per_fetch: 50,
+      },
       'POST /contacts/discover': { task_id: 't1' },
       'GET /tasks/t1': { id: 't1', type: 'contact_discover', status: 'running', progress: 40 },
     })
@@ -175,8 +179,12 @@ describe('ContactsPage', () => {
 
     const keyword = await screen.findByLabelText('Role or skill')
     await vi.waitFor(() => expect(keyword).toBeEnabled()) // after the settings have loaded
+    expect(await screen.findByText(/200 of 300 LinkedIn posts left this month/)).toBeInTheDocument()
+    const choices = screen.getAllByRole('option', { name: /^\d+ posts$/ }).map((o) => o.value)
+    expect(choices).toEqual(['10', '25', '50']) // the admin allows at most 50
     await userEvent.type(keyword, 'React Native')
     await userEvent.selectOptions(screen.getByLabelText('Posted within'), 'month')
+    await userEvent.selectOptions(screen.getByLabelText('Posts to read'), '50')
     await userEvent.click(screen.getByRole('button', { name: 'Search' }))
 
     expect(await screen.findByRole('progressbar')).toHaveAttribute('aria-valuenow', '40')
