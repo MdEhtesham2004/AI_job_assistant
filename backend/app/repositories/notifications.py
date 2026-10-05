@@ -18,6 +18,7 @@ CATEGORIES: dict[str, tuple[str, ...]] = {
         "saved_search_%",
         "digest_%",
         "skill_plan_%",
+        "interview_prep_%",
     ),
     "tasks": ("task_%",),
 }

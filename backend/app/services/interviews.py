@@ -18,6 +18,7 @@ from decimal import Decimal
 from html import escape
 from typing import Any
 
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import Settings
@@ -41,6 +42,7 @@ from app.models.enums import (
     NotificationSeverity,
     ParseStatus,
 )
+from app.models.hunt import InterviewPrep
 from app.models.interviews import Interview, InterviewReport, InterviewTurn
 from app.models.jobs import Job
 from app.models.resumes import ResumeVersion
@@ -225,6 +227,9 @@ async def _missing_skills(
     return list(analysis.missing_skills) if analysis else []
 
 
+missing_skills_for = _missing_skills  # also used by the interview prep pack (Phase 17)
+
+
 def _resume_input(version: ResumeVersion) -> dict[str, Any]:
     parsed = dict(version.parsed or {})
     for key in ("email", "phone", "links"):  # not needed to interview, keep it private
@@ -235,7 +240,14 @@ def _resume_input(version: ResumeVersion) -> dict[str, Any]:
 # ---------- background work (called by the worker handlers) ----------
 
 
-async def generate_plan(session: AsyncSession, *, ai: AiClient, interview: Interview) -> Interview:
+async def generate_plan(
+    session: AsyncSession,
+    *,
+    ai: AiClient,
+    interview: Interview,
+    focus_questions: list[str] | None = None,
+) -> Interview:
+    """`focus_questions`: rehearse a real interview (Phase 17 prep pack's likely questions)."""
     user_id = interview.user_id
     job = await JobRepository(session).visible(interview.job_id, user_id)
     if job is None:
@@ -264,8 +276,9 @@ async def generate_plan(session: AsyncSession, *, ai: AiClient, interview: Inter
             round_type=interview.round.value,
             difficulty=interview.difficulty.value,
             minutes=interview.minutes,
-            avoid_questions=[] if retry else await repo.asked_questions(job.id),
+            avoid_questions=[] if retry or focus_questions else await repo.asked_questions(job.id),
             retry_questions=retry,
+            focus_questions=focus_questions or [],
         ),
         output=prompts.InterviewPlan,
     )
@@ -436,7 +449,9 @@ class InterviewService:
         round_type: InterviewRound,
         difficulty: InterviewDifficulty,
         retry_of_id: uuid.UUID | None = None,
+        from_prep: bool = False,
     ) -> tuple[Interview, Task]:
+        """`from_prep`: rehearse the prep pack's likely questions (Phase 17)."""
         job = await JobRepository(self.session).visible(job_id, self.user_id)
         if job is None:
             raise NotFoundError("Job not found.")
@@ -454,6 +469,16 @@ class InterviewService:
                 raise ConflictError(
                     "That interview has no report yet.", code="INTERVIEW_NOT_REPORTED"
                 )
+        focus: list[str] = []
+        if from_prep:
+            prep = await self.session.scalar(
+                select(InterviewPrep).where(
+                    InterviewPrep.user_id == self.user_id, InterviewPrep.job_id == job.id
+                )
+            )
+            if prep is None:
+                raise ConflictError("Make the interview prep pack first.", code="PREP_REQUIRED")
+            focus = [str(q["question"]) for q in prep.pack.get("likely_questions", [])][:3]
         await self._limit_check()
         application = await ApplicationRepository(self.session, owner_id=self.user_id).for_job(
             job.id
@@ -469,11 +494,11 @@ class InterviewService:
                 status=InterviewStatus.PLANNING,
             )
         )
+        payload: dict[str, Any] = {"interview_id": str(interview.id)}
+        if focus:
+            payload["focus_questions"] = focus
         task = await TaskService(self.session, self.user_id, self.dispatcher).create(
-            "interview_plan",
-            {"interview_id": str(interview.id)},
-            entity_type=ENTITY,
-            entity_id=interview.id,
+            "interview_plan", payload, entity_type=ENTITY, entity_id=interview.id
         )
         interview.plan_task_id = task.id
         await self.session.commit()

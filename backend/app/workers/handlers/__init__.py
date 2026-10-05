@@ -9,5 +9,6 @@ from app.workers.handlers import (  # noqa: F401
     interviews,
     jobs,
     outreach,
+    prep,
     resumes,
 )

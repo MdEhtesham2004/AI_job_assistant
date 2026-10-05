@@ -48,7 +48,12 @@ async def interview_plan(ctx: TaskContext) -> dict[str, Any]:
     interview = await _interview(ctx)
     await ctx.progress(10)
     try:
-        await generate_plan(ctx.session, ai=ctx.services.ai, interview=interview)
+        await generate_plan(
+            ctx.session,
+            ai=ctx.services.ai,
+            interview=interview,
+            focus_questions=list(ctx.task.payload.get("focus_questions") or []),
+        )
     except Exception as exc:
         await _fail(ctx, interview, exc, InterviewStatus.FAILED)
         raise

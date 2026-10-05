@@ -82,7 +82,11 @@ async def create_interview(
     job_id: uuid.UUID, body: InterviewCreate, request: Request, db: DbSession, user: ApprovedUser
 ) -> InterviewCreated:
     interview, task = await service(request, db, user).create(
-        job_id, round_type=body.round, difficulty=body.difficulty, retry_of_id=body.retry_of_id
+        job_id,
+        round_type=body.round,
+        difficulty=body.difficulty,
+        retry_of_id=body.retry_of_id,
+        from_prep=body.from_prep,
     )
     return InterviewCreated(interview_id=interview.id, task_id=task.id)
 

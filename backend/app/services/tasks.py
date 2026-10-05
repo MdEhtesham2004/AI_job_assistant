@@ -31,6 +31,7 @@ TASK_QUEUES: dict[str, str] = {
     "daily_digest": "ai",
     "skill_plan": "ai",
     "screening_answers": "ai",
+    "interview_prep": "ai",
     "interview_report": "ai",
     "contact_discover": "default",
     "email_draft": "ai",

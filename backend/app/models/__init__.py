@@ -4,7 +4,7 @@ from app.models.accounts import AuthRefreshToken, Profile, User, UserSettings
 from app.models.analysis import JobAnalysis
 from app.models.applications import Application, ApplicationStatusHistory
 from app.models.documents import CoverLetter
-from app.models.hunt import Digest, ScreeningAnswers, SkillPlanRecord
+from app.models.hunt import Digest, InterviewPrep, ScreeningAnswers, SkillPlanRecord
 from app.models.interviews import Interview, InterviewReport, InterviewTurn
 from app.models.jobs import Job, JobSearchResult, JobSearchRun, SavedSearch, UserJob
 from app.models.outreach import (
@@ -32,6 +32,7 @@ __all__ = [
     "Email",
     "EmailAttachment",
     "Interview",
+    "InterviewPrep",
     "InterviewReport",
     "InterviewTurn",
     "Job",

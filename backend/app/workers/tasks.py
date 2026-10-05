@@ -50,6 +50,24 @@ async def _dispatch_digests(settings: Settings) -> int:
         await engine.dispose()
 
 
+async def _dispatch_preps(settings: Settings) -> int:
+    from app.services.prep import dispatch_preps
+    from app.workers.dispatch import CeleryDispatcher
+
+    engine = create_engine(settings)
+    try:
+        async with create_session_factory(engine)() as session:
+            return await dispatch_preps(session, settings, CeleryDispatcher(), datetime.now(UTC))
+    finally:
+        await engine.dispose()
+
+
+@celery_app.task(name="tasks.dispatch_preps")
+def dispatch_preps() -> int:
+    """Celery Beat, every 5 minutes: prep packs for applications that reached Interview."""
+    return asyncio.run(_dispatch_preps(get_settings()))
+
+
 @celery_app.task(name="tasks.dispatch_digests")
 def dispatch_digests() -> int:
     """Celery Beat, every 15 minutes: start today's digest for users whose hour has come."""
