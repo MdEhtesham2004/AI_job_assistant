@@ -83,6 +83,8 @@ function ProfileForm({ profile }) {
       linkedin: profile.links.linkedin ?? '',
       github: profile.links.github ?? '',
       portfolio: profile.links.portfolio ?? '',
+      notice_period: profile.notice_period ?? '',
+      expected_salary: profile.expected_salary ?? '',
     },
   })
 
@@ -99,6 +101,8 @@ function ProfileForm({ profile }) {
         location: values.location || null,
         timezone: values.timezone,
         links,
+        notice_period: values.notice_period || null,
+        expected_salary: values.expected_salary || null,
       })
       reset(values)
       toast.success('Profile saved.')
@@ -148,6 +152,21 @@ function ProfileForm({ profile }) {
         type="url"
         registration={register('portfolio')}
         error={errors.portfolio}
+      />
+      <div />
+      <FormField
+        label="Notice period"
+        placeholder="e.g. 30 days, or immediately"
+        hint="Used in screening answers. Leave empty and they say [fill in]."
+        registration={register('notice_period')}
+        error={errors.notice_period}
+      />
+      <FormField
+        label="Expected salary"
+        placeholder="e.g. 12–14 LPA, negotiable"
+        hint="Never guessed: without it, answers say [fill in]."
+        registration={register('expected_salary')}
+        error={errors.expected_salary}
       />
       <div className="sm:col-span-2">
         <Button type="submit" disabled={isSubmitting || !isDirty}>

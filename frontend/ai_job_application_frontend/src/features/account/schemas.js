@@ -23,6 +23,9 @@ export const profileSchema = z.object({
   linkedin: optionalUrl,
   github: optionalUrl,
   portfolio: optionalUrl,
+  // Phase 16: used in screening answers (the AI never guesses these).
+  notice_period: optionalText(100, 'Notice period'),
+  expected_salary: optionalText(100, 'Expected salary'),
 })
 
 const percent = z.number({ error: 'Enter a number' }).int().min(0, 'Min 0').max(100, 'Max 100')
@@ -64,6 +67,10 @@ export const settingsSchema = z
     automation_tailor: z.boolean(),
     automation_cover_letter: z.boolean(),
     monthly_ai_budget_usd: z.number({ error: 'Enter an amount' }).min(0).max(1000),
+    digest_enabled: z.boolean(),
+    digest_hour: range(0, 23),
+    digest_min_score: percent,
+    digest_email: z.boolean(),
   })
   .refine((v) => v.threshold_tailor < v.threshold_use_master, {
     path: ['threshold_tailor'],

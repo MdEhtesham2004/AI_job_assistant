@@ -3,6 +3,7 @@ import {
   BarChart3,
   Bell,
   FileUp,
+  GraduationCap,
   ScrollText,
   Radar,
   BellRing,
@@ -42,6 +43,7 @@ export const navigation = [
       { to: '/jobs/import', label: 'Import', icon: FileUp },
       { to: '/applications', label: 'Applications', icon: ClipboardList },
       { to: '/interviews', label: 'Mock interviews', icon: Mic },
+      { to: '/skills', label: 'Skill gaps', icon: GraduationCap },
     ],
   },
   {
