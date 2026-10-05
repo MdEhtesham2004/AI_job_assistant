@@ -159,6 +159,7 @@ function UsageCard() {
     ['Job searches', u.jsearch_month, 'requests this month'],
     ['LinkedIn posts', u.apify_month, 'this month'],
     ['LinkedIn fetches', u.apify_today, 'today'],
+    ...(u.interviews_month ? [['Mock interviews', u.interviews_month, 'this month']] : []),
   ]
   const budget = Number(u.ai_budget_usd)
   const spent = Number(u.ai_spent_month_usd)
