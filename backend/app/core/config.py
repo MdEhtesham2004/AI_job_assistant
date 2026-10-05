@@ -156,6 +156,10 @@ class Settings(BaseSettings):
             return self.interview_voice_provider
         return "gemini" if self.gemini_api_key else "openai"
 
+    # --- Daily best-matches digest (Phase 16) ---
+    digest_score_cap: int = Field(default=20, ge=0, le=200)  # AI scores per user per day
+    digest_max_jobs: int = Field(default=5, ge=1, le=20)
+
     # --- Paid data APIs: cost control (Phase 14) ---
     # Identical searches within this window reuse stored results (shared by all users).
     jsearch_cache_hours: float = Field(default=12, ge=0)

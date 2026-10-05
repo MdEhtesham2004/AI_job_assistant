@@ -11,7 +11,14 @@ from app.repositories.base import OwnedRepository
 CATEGORIES: dict[str, tuple[str, ...]] = {
     "email": ("email_%", "gmail_%", "follow_up_%", "do_not_contact"),
     "replies": ("reply_%",),
-    "jobs": ("contacts_found", "automation_%", "search_%", "saved_search_%"),
+    "jobs": (
+        "contacts_found",
+        "automation_%",
+        "search_%",
+        "saved_search_%",
+        "digest_%",
+        "skill_plan_%",
+    ),
     "tasks": ("task_%",),
 }
 

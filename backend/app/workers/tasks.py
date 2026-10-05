@@ -38,6 +38,24 @@ async def _dispatch_saved_searches(settings: Settings) -> int:
         await redis.aclose()
 
 
+async def _dispatch_digests(settings: Settings) -> int:
+    from app.services.hunt import dispatch_digests
+    from app.workers.dispatch import CeleryDispatcher
+
+    engine = create_engine(settings)
+    try:
+        async with create_session_factory(engine)() as session:
+            return await dispatch_digests(session, settings, CeleryDispatcher(), datetime.now(UTC))
+    finally:
+        await engine.dispose()
+
+
+@celery_app.task(name="tasks.dispatch_digests")
+def dispatch_digests() -> int:
+    """Celery Beat, every 15 minutes: start today's digest for users whose hour has come."""
+    return asyncio.run(_dispatch_digests(get_settings()))
+
+
 @celery_app.task(name="tasks.dispatch_saved_searches")
 def dispatch_saved_searches() -> int:
     """Celery Beat, every 5 minutes: start saved searches that are due."""

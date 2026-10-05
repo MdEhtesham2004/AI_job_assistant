@@ -34,6 +34,8 @@ class AccountService:
             headline=data.headline,
             links=data.links_dict(),
             timezone=data.timezone,
+            notice_period=data.notice_period,
+            expected_salary=data.expected_salary,
         )
         await self.session.commit()
         return profile
