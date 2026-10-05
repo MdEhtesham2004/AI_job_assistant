@@ -236,6 +236,9 @@ class PlatformSettings(BaseModel):
     # Find jobs: most pages (10 jobs = 1 JSearch request) per search; "Load more" allowed.
     jsearch_max_pages: int
     jsearch_allow_load_more: bool
+    # AI mock interview (Phase 15)
+    interviews_per_month: int
+    interview_minutes: int
 
 
 class PlatformUpdate(BaseModel):
@@ -246,6 +249,8 @@ class PlatformUpdate(BaseModel):
     apify_max_posts_per_fetch: int | None = Field(default=None, ge=5, le=200)
     jsearch_max_pages: int | None = Field(default=None, ge=1, le=3)
     jsearch_allow_load_more: bool | None = None
+    interviews_per_month: int | None = Field(default=None, ge=0, le=1_000)
+    interview_minutes: int | None = Field(default=None, ge=2, le=30)
 
 
 class QuotaRead(BaseModel):
@@ -265,6 +270,9 @@ class UsageRead(BaseModel):
     # Find jobs limits set by the admin.
     max_jobs_per_search: int
     max_posts_per_fetch: int
+    interviews_month: QuotaRead  # mock interviews (Phase 15)
+    interview_minutes: int
+    interviews_available: bool  # the voice service is configured
     load_more_allowed: bool
 
 

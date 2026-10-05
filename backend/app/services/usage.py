@@ -35,6 +35,7 @@ from app.integrations.apify import LinkedInPost, PostedLimit, PostSource
 from app.models.accounts import User
 from app.models.enums import UserRole
 from app.models.system import AppSettings, ProviderCall
+from app.repositories.interviews import InterviewRepository
 from app.services.notifications import notify
 
 logger = structlog.get_logger("app.usage")
@@ -135,6 +136,7 @@ class Usage:
     jsearch_month: Quota  # requests (one per page)
     apify_month: Quota  # LinkedIn posts returned (what Apify bills)
     apify_today: Quota  # LinkedIn fetches (runs)
+    interviews_month: Quota  # mock interviews (Phase 15)
     resets_at: datetime
     cached_hits_month: int
 
@@ -163,6 +165,10 @@ async def user_usage(
         ),
         apify_today=Quota(
             await _used(session, user_id, APIFY, day, units=False), limits.apify_runs_per_day
+        ),
+        interviews_month=Quota(
+            await InterviewRepository(session, owner_id=user_id).counted_since(month),
+            limits.interviews_per_month,
         ),
         resets_at=_next_month(now),
         cached_hits_month=int(cached_hits or 0),

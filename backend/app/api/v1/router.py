@@ -14,6 +14,7 @@ from app.api.v1.routes import (
     health,
     imports,
     integrations,
+    interviews,
     jobs,
     notifications,
     outreach,
@@ -38,6 +39,7 @@ api_router.include_router(automation.router)
 api_router.include_router(dashboard.router)
 api_router.include_router(admin_insights.router)
 api_router.include_router(imports.router)
+api_router.include_router(interviews.router)
 api_router.include_router(saved_searches.router)
 api_router.include_router(tasks.router)
 api_router.include_router(notifications.router)

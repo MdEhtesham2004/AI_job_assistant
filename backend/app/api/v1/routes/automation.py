@@ -6,6 +6,7 @@ from sqlalchemy import select
 from app.api.deps import AdminUser, ApprovedUser, DbSession
 from app.core.errors import NotFoundError
 from app.integrations.ai import AiClient
+from app.integrations.realtime import voice_client
 from app.models.enums import ActorType
 from app.models.outreach import ReplyClassification
 from app.models.system import AppSettings, AuditLog
@@ -96,6 +97,8 @@ QUOTA_FIELDS = (
     "apify_max_posts_per_fetch",
     "jsearch_max_pages",
     "jsearch_allow_load_more",
+    "interviews_per_month",
+    "interview_minutes",
 )
 
 
@@ -152,7 +155,7 @@ async def update_platform(
 
 
 @router.get("/usage", response_model=UsageRead, summary="Your paid-API and AI usage this month")
-async def my_usage(db: DbSession, user: ApprovedUser) -> UsageRead:
+async def my_usage(request: Request, db: DbSession, user: ApprovedUser) -> UsageRead:
     usage = await user_usage(db, user.id)
     platform = await app_settings(db)
     user_settings = await UserSettingsRepository(db, owner_id=user.id).get_or_create()
@@ -173,6 +176,9 @@ async def my_usage(db: DbSession, user: ApprovedUser) -> UsageRead:
         max_jobs_per_search=platform.jsearch_max_pages * 10,
         load_more_allowed=platform.jsearch_allow_load_more,
         max_posts_per_fetch=platform.apify_max_posts_per_fetch,
+        interviews_month=quota(usage.interviews_month),
+        interview_minutes=platform.interview_minutes,
+        interviews_available=voice_client(request.app.state.settings).configured,
     )
 
 

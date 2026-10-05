@@ -339,3 +339,13 @@ tests/
 ```
 
 Every response carries an `X-Request-ID` header that matches the `request_id` in the logs.
+
+## AI mock interview (Phase 15)
+
+A 6-minute voice screen per job with a friendly AI interviewer ("Maya"), then a scored report.
+
+- **Flow:** `POST /jobs/{id}/interviews` → plan task (`interview_plan`, OpenRouter) → `POST /interviews/{id}/session` returns a **short-lived OpenAI Realtime token** → the browser connects to OpenAI directly over WebRTC (`gpt-realtime-mini`, voice `marin`, English transcription of both sides) → transcript lines `POST /interviews/{id}/turns` → `finish` → optional corrections `PATCH …/turns/{seq}` → `POST …/report` (task `interview_report`, quotes checked against the candidate's words, PDF).
+- **Privacy:** no audio passes through or is stored by this server; only the text transcript is kept. Interviews are in the data export and are removed with the account.
+- **Limits:** `app_settings.interviews_per_month` (10; every created interview counts, failed plans do not) and `interview_minutes` (6). The room hangs up at the deadline; late transcript lines are refused; a call whose tab was closed ends on its own.
+- **Cost:** an estimate per minute (`REALTIME_COST_PER_MINUTE_USD`) is recorded as AI spend (`ai_calls.task_type = interview_realtime`).
+- **Voice service:** **Gemini Live** (`GEMINI_API_KEY`, model `gemini-2.5-flash-native-audio-latest`, voice `Aoede`; browser ↔ Google over a WebSocket, 16 kHz PCM in / 24 kHz out, single-use token whose setup is locked with `bidiGenerateContentSetup`) or **OpenAI Realtime** (`OPENAI_REALTIME_API_KEY` — a real OpenAI key; `OPENAI_API_KEY` is read as the OpenRouter key). `INTERVIEW_VOICE_PROVIDER=auto` picks Gemini when its key is set. The nginx `Permissions-Policy` allows the microphone for this site only.

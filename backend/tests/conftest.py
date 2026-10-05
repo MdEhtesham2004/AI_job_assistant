@@ -49,6 +49,9 @@ def settings(tmp_path_factory: pytest.TempPathFactory) -> Settings:
         # Phase 8: never call the real JSearch from tests.
         jsearch_api_key="test-jsearch-key",
         jsearch_base_url="https://jsearch.test",
+        # Voice services: never the real keys from backend/.env (tests set their own).
+        realtime_api_key="",
+        gemini_api_key="",
     )
 
 
