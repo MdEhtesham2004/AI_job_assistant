@@ -63,6 +63,7 @@ export const queryKeys = {
     digest: () => ['hunt', 'digest'],
     skills: () => ['hunt', 'skills'],
     answers: (jobId) => ['hunt', 'answers', jobId],
+    prep: (jobId) => ['hunt', 'prep', jobId],
   },
   interviews: {
     all: () => ['interviews'],

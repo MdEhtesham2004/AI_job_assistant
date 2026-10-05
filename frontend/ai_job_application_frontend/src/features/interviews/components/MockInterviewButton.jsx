@@ -12,7 +12,13 @@ import { DIFFICULTY_OPTIONS, ROUND_OPTIONS, guessDifficulty } from '../api'
 import { useCreateInterview } from '../hooks'
 
 /** "Mock interview" on a job or application: choose the round, then the AI plans it. */
-export function MockInterviewButton({ job, variant = 'outline', retryOf = null, label }) {
+export function MockInterviewButton({
+  job,
+  variant = 'outline',
+  retryOf = null,
+  fromPrep = false,
+  label,
+}) {
   const [open, setOpen] = useState(false)
   const [round, setRound] = useState('mixed')
   const [difficulty, setDifficulty] = useState(() => guessDifficulty(job))
@@ -28,6 +34,21 @@ export function MockInterviewButton({ job, variant = 'outline', retryOf = null, 
     const created = await create.mutateAsync(body)
     setOpen(false)
     navigate(`/interviews/${created.interview_id}`)
+  }
+
+  if (fromPrep) {
+    // Phase 17: rehearse the prep pack's likely questions (one click, no setup dialog).
+    return (
+      <Button
+        variant={variant}
+        disabled={create.isPending || noneLeft || unavailable}
+        title={noneLeft ? 'No mock interviews left this month' : undefined}
+        onClick={() => begin({ from_prep: true, round: 'mixed', difficulty: guessDifficulty(job) })}
+      >
+        <Mic />
+        {label ?? 'Practise with Maya'}
+      </Button>
+    )
   }
 
   if (retryOf) {

@@ -16,6 +16,8 @@ export const huntApi = {
   makeAnswers: (jobId, customQuestions) =>
     api.post(`/jobs/${jobId}/answers`, { custom_questions: customQuestions }),
   editAnswer: (jobId, key, answer) => api.patch(`/jobs/${jobId}/answers/${key}`, { answer }),
+  prep: (jobId) => api.get(`/jobs/${jobId}/prep`),
+  makePrep: (jobId) => api.post(`/jobs/${jobId}/prep`),
 }
 
 export const FILL_IN = '[fill in]'
@@ -117,5 +119,27 @@ export function useEditAnswer(jobId) {
       toast.success('Answer saved.')
     },
     onError: (error) => toast.error(error.message),
+  })
+}
+
+// ---------- interview prep pack (Phase 17) ----------
+
+export function usePrep(jobId) {
+  return useQuery({
+    queryKey: queryKeys.hunt.prep(jobId),
+    queryFn: () => huntApi.prep(jobId),
+    enabled: Boolean(jobId),
+  })
+}
+
+export function useMakePrep(jobId, runningTaskId) {
+  return useStartAndFollow({
+    queryKey: queryKeys.hunt.prep(jobId),
+    start: () => huntApi.makePrep(jobId),
+    runningTaskId,
+    onDone: (task) =>
+      task.status === 'succeeded'
+        ? toast.success('Your interview prep is ready.')
+        : toast.error(task.error ?? 'The prep pack could not be made.'),
   })
 }
