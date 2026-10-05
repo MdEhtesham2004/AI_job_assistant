@@ -20,6 +20,7 @@ import { Dialog } from '@/components/ui/dialog'
 import { Textarea } from '@/components/ui/textarea'
 import { PrepareApplicationCard } from '@/features/applications/components/PrepareApplicationCard'
 import { AnalysisPanel } from '@/features/jobs/components/AnalysisPanel'
+import { InterviewPrepCard } from '@/features/hunt/components/InterviewPrepCard'
 import { ScreeningAnswersCard } from '@/features/hunt/components/ScreeningAnswersCard'
 import { MockInterviewCard } from '@/features/interviews/components/MockInterviewCard'
 import { DocumentsCard } from '@/features/jobs/components/DocumentsCard'
@@ -148,6 +149,7 @@ function JobDetail({ job }) {
         <div className="order-first flex flex-col gap-6 xl:order-none">
           <PrepareApplicationCard job={job} />
           <AnalysisPanel job={job} />
+          <InterviewPrepCard job={job} />
           <MockInterviewCard job={job} />
           <ScreeningAnswersCard job={job} />
           <DocumentsCard jobId={job.id} canGenerate={job.description_quality !== 'missing'} />

@@ -5,6 +5,7 @@ import AnalyticsPage from '@/pages/admin/AnalyticsPage'
 import AuditLogPage from '@/pages/admin/AuditLogPage'
 import ImportPage from '@/pages/ImportPage'
 import InterviewPage from '@/pages/InterviewPage'
+import InterviewPrepPage from '@/pages/InterviewPrepPage'
 import InterviewsPage from '@/pages/InterviewsPage'
 import SkillsPage from '@/pages/SkillsPage'
 import NotificationsPage from '@/pages/NotificationsPage'
@@ -94,6 +95,7 @@ export const routes = [
           { path: 'jobs/import', element: <ImportPage /> },
           { path: 'interviews', element: <InterviewsPage /> },
           { path: 'skills', element: <SkillsPage /> },
+          { path: 'jobs/:jobId/prep', element: <InterviewPrepPage /> },
           { path: 'interviews/:interviewId', element: <InterviewPage /> },
           { path: 'admin/users', element: admin(<AdminUsersPage />) },
           { path: 'admin/audit', element: admin(<AuditLogPage />) },

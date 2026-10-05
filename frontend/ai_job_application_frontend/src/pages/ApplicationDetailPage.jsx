@@ -10,6 +10,7 @@ import { CHANNEL_LABELS, STATUS_LABELS } from '@/features/applications/api'
 import { ApplicationStatusBadge } from '@/features/applications/components/ApplicationStatusBadge'
 import { MoveButtons } from '@/features/applications/components/MoveButtons'
 import { useApplication, useUpdateApplication } from '@/features/applications/hooks'
+import { InterviewPrepCard } from '@/features/hunt/components/InterviewPrepCard'
 import { MockInterviewButton } from '@/features/interviews/components/MockInterviewButton'
 import { MatchScoreBadge } from '@/features/jobs/components/MatchScore'
 import { ApplicationEmailCard } from '@/features/outreach/components/ApplicationEmailCard'
@@ -106,6 +107,9 @@ function Detail({ application }) {
               <NextAction application={application} />
             </CardContent>
           </Card>
+          {['interview', 'in_process', 'offer'].includes(application.status) && (
+            <InterviewPrepCard job={job} highlight={application.status === 'interview'} />
+          )}
           <Card>
             <CardHeader>
               <CardTitle>Documents</CardTitle>
