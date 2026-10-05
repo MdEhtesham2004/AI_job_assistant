@@ -59,6 +59,11 @@ export const queryKeys = {
     summary: () => ['dashboard', 'summary'],
   },
   usage: () => ['usage'],
+  hunt: {
+    digest: () => ['hunt', 'digest'],
+    skills: () => ['hunt', 'skills'],
+    answers: (jobId) => ['hunt', 'answers', jobId],
+  },
   interviews: {
     all: () => ['interviews'],
     list: (jobId) => ['interviews', 'list', jobId ?? null],

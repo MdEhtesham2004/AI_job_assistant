@@ -227,6 +227,37 @@ function SettingsForm({ settings }) {
       </Section>
 
       <Section
+        title="Daily digest"
+        description="Every morning: your best new matches, scored for you (up to 20 new jobs a day), in the app and — when Gmail is connected — by email to yourself."
+      >
+        <div className="sm:col-span-2">
+          <CheckboxField label="Send me a daily digest" registration={register('digest_enabled')} />
+        </div>
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="digest-hour">Time (your time zone, from Profile)</Label>
+          <Select id="digest-hour" {...register('digest_hour', num)}>
+            {Array.from({ length: 24 }, (_, h) => (
+              <option key={h} value={h}>
+                {String(h).padStart(2, '0')}:00
+              </option>
+            ))}
+          </Select>
+        </div>
+        <FormField
+          label="Only jobs scoring at least"
+          type="number"
+          registration={register('digest_min_score', num)}
+          error={errors.digest_min_score}
+        />
+        <div className="sm:col-span-2">
+          <CheckboxField
+            label="Also email it to me (from my connected Gmail, to myself)"
+            registration={register('digest_email')}
+          />
+        </div>
+      </Section>
+
+      <Section
         title="AI usage"
         description="Monthly spending limit for AI calls."
         usedFrom="Phase 6"

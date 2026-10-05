@@ -26,6 +26,10 @@ const SETTINGS = {
   automation_tailor: true,
   automation_cover_letter: true,
   monthly_ai_budget_usd: '5.00',
+  digest_enabled: true,
+  digest_hour: 8,
+  digest_min_score: 70,
+  digest_email: true,
 }
 
 afterEach(() => vi.unstubAllGlobals())

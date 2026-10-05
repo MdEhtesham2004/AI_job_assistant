@@ -12,6 +12,7 @@ import {
   useDashboard,
   useUsage,
 } from '@/features/dashboard/api'
+import { DigestCard } from '@/features/hunt/components/DigestCard'
 import { formatDate, formatRelative } from '@/lib/format'
 
 const pct = (value) => (value == null ? '—' : `${Math.round(value * 100)}%`)
@@ -142,6 +143,7 @@ function Dashboard({ data }) {
               />
             </CardContent>
           </Card>
+          <DigestCard />
           <UsageCard />
           <Activity items={data.activity} />
         </div>

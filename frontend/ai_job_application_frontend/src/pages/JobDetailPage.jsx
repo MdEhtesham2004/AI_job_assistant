@@ -20,6 +20,7 @@ import { Dialog } from '@/components/ui/dialog'
 import { Textarea } from '@/components/ui/textarea'
 import { PrepareApplicationCard } from '@/features/applications/components/PrepareApplicationCard'
 import { AnalysisPanel } from '@/features/jobs/components/AnalysisPanel'
+import { ScreeningAnswersCard } from '@/features/hunt/components/ScreeningAnswersCard'
 import { MockInterviewCard } from '@/features/interviews/components/MockInterviewCard'
 import { DocumentsCard } from '@/features/jobs/components/DocumentsCard'
 import { JobStateBadge, QualityBadge } from '@/features/jobs/components/JobBadges'
@@ -148,6 +149,7 @@ function JobDetail({ job }) {
           <PrepareApplicationCard job={job} />
           <AnalysisPanel job={job} />
           <MockInterviewCard job={job} />
+          <ScreeningAnswersCard job={job} />
           <DocumentsCard jobId={job.id} canGenerate={job.description_quality !== 'missing'} />
           <NotesCard job={job} />
           <Card>
