@@ -3,6 +3,15 @@
 
 limit_req_zone $binary_remote_addr zone=api:10m rate=20r/s;
 
+# Cache-Control per path. Chosen here (not with add_header inside a location) because a
+# location with its own add_header drops ALL server-level headers — found in the Phase 15
+# production check: pages were served without any security header. Empty = not sent.
+map $uri $cache_control {
+    ~^/assets/  "public, immutable";
+    ~^/api/     "";
+    default     "no-cache";
+}
+
 # Port 80: certificate challenges + redirect everything else to HTTPS.
 server {
     listen 80;
@@ -43,6 +52,7 @@ server {
     add_header Referrer-Policy strict-origin-when-cross-origin always;
     # microphone=(self): the mock-interview room (Phase 15) needs it; no other site may ask.
     add_header Permissions-Policy "camera=(), microphone=(self), geolocation=()" always;
+    add_header Cache-Control $cache_control;
 
     location /api/ {
         limit_req zone=api burst=60 nodelay;
@@ -54,16 +64,20 @@ server {
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto https;
         proxy_read_timeout 120s;
+        # The API sets these too; send nginx's copy only (once, same value everywhere).
+        proxy_hide_header Strict-Transport-Security;
+        proxy_hide_header X-Content-Type-Options;
+        proxy_hide_header X-Frame-Options;
+        proxy_hide_header Referrer-Policy;
+        proxy_hide_header Permissions-Policy;
     }
 
     location /assets/ {
         expires 1y;
-        add_header Cache-Control "public, immutable";
         try_files $uri =404;
     }
 
     location / {
-        add_header Cache-Control "no-cache";
         try_files $uri $uri/ /index.html;
     }
 }
