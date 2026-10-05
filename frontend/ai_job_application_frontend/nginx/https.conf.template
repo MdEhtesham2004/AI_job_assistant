@@ -41,7 +41,8 @@ server {
     add_header X-Content-Type-Options nosniff always;
     add_header X-Frame-Options DENY always;
     add_header Referrer-Policy strict-origin-when-cross-origin always;
-    add_header Permissions-Policy "camera=(), microphone=(), geolocation=()" always;
+    # microphone=(self): the mock-interview room (Phase 15) needs it; no other site may ask.
+    add_header Permissions-Policy "camera=(), microphone=(self), geolocation=()" always;
 
     location /api/ {
         limit_req zone=api burst=60 nodelay;

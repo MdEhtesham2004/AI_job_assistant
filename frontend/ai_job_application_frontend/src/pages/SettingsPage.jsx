@@ -308,6 +308,11 @@ const QUOTAS = [
   ['jsearch_requests_per_month', 'Job-search requests per user / month', 'One per results page.'],
   ['apify_posts_per_month', 'LinkedIn posts per user / month', 'Apify bills per post read.'],
   ['apify_runs_per_day', 'LinkedIn fetches per user / day', ''],
+  [
+    'interviews_per_month',
+    'Mock interviews per user / month',
+    'Voice calls (about $0.30–1 each); practising again counts.',
+  ],
 ]
 
 const POSTS_PER_FETCH = [10, 25, 50]

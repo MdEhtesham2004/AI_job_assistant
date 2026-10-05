@@ -10,6 +10,7 @@ import { CHANNEL_LABELS, STATUS_LABELS } from '@/features/applications/api'
 import { ApplicationStatusBadge } from '@/features/applications/components/ApplicationStatusBadge'
 import { MoveButtons } from '@/features/applications/components/MoveButtons'
 import { useApplication, useUpdateApplication } from '@/features/applications/hooks'
+import { MockInterviewButton } from '@/features/interviews/components/MockInterviewButton'
 import { MatchScoreBadge } from '@/features/jobs/components/MatchScore'
 import { ApplicationEmailCard } from '@/features/outreach/components/ApplicationEmailCard'
 import { RepliesCard } from '@/features/outreach/components/RepliesCard'
@@ -55,6 +56,7 @@ function Detail({ application }) {
             >
               Job details
             </Link>
+            <MockInterviewButton job={job} label="Practise the interview" />
             {job.apply_url && (
               <a
                 href={job.apply_url}

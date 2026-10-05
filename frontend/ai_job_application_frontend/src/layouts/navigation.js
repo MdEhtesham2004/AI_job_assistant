@@ -12,6 +12,7 @@ import {
   FileText,
   House,
   ListChecks,
+  Mic,
   Search,
   Send,
   Settings,
@@ -40,6 +41,7 @@ export const navigation = [
       { to: '/jobs/saved', label: 'Saved searches', icon: BellRing },
       { to: '/jobs/import', label: 'Import', icon: FileUp },
       { to: '/applications', label: 'Applications', icon: ClipboardList },
+      { to: '/interviews', label: 'Mock interviews', icon: Mic },
     ],
   },
   {

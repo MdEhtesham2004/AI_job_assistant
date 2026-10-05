@@ -4,6 +4,8 @@ import AdminUsersPage from '@/pages/admin/AdminUsersPage'
 import AnalyticsPage from '@/pages/admin/AnalyticsPage'
 import AuditLogPage from '@/pages/admin/AuditLogPage'
 import ImportPage from '@/pages/ImportPage'
+import InterviewPage from '@/pages/InterviewPage'
+import InterviewsPage from '@/pages/InterviewsPage'
 import NotificationsPage from '@/pages/NotificationsPage'
 import ApplicationDetailPage from '@/pages/ApplicationDetailPage'
 import ApplicationsPage from '@/pages/ApplicationsPage'
@@ -89,6 +91,8 @@ export const routes = [
           { path: 'account/password', element: <ChangePasswordPage /> },
           { path: 'notifications', element: <NotificationsPage /> },
           { path: 'jobs/import', element: <ImportPage /> },
+          { path: 'interviews', element: <InterviewsPage /> },
+          { path: 'interviews/:interviewId', element: <InterviewPage /> },
           { path: 'admin/users', element: admin(<AdminUsersPage />) },
           { path: 'admin/audit', element: admin(<AuditLogPage />) },
           { path: 'admin/analytics', element: admin(<AnalyticsPage />) },

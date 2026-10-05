@@ -112,6 +112,8 @@ describe('SettingsPage', () => {
       apify_runs_per_day: 3,
       jsearch_max_pages: 1,
       jsearch_allow_load_more: true,
+      interviews_per_month: 10,
+      interview_minutes: 6,
     }
     const fetchMock = mockApi({
       'GET /users/me/settings': SETTINGS,
