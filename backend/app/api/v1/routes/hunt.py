@@ -7,6 +7,7 @@ from fastapi import APIRouter, Request, status
 from app.api.deps import ApprovedUser, DbSession
 from app.core.errors import ConflictError
 from app.models.hunt import Digest, ScreeningAnswers
+from app.models.jobs import Job
 from app.repositories.profiles import ProfileRepository
 from app.repositories.tasks import TaskRepository
 from app.schemas.hunt import (
@@ -16,6 +17,7 @@ from app.schemas.hunt import (
     AnswersRequest,
     DigestRead,
     DigestState,
+    PrepRead,
     SkillGapRead,
     SkillPlanRead,
     SkillsRead,
@@ -32,7 +34,9 @@ from app.services.hunt import (
     start_digest_now,
     today_for,
 )
-from app.services.tasks import TaskService
+from app.services.prep import prep_for, queue_prep, running_prep
+from app.services.resume_files import PDF_MIME
+from app.services.tasks import TaskService, download_url
 
 router = APIRouter(tags=["job hunt"])
 
@@ -149,3 +153,44 @@ async def update_answer(
 ) -> AnswersRead:
     record = await edit_answer(db, user.id, job_id, key, body.answer)
     return _answers(job_id, record, None)
+
+
+# ---------- Phase 17: interview prep pack ----------
+
+
+@router.get("/jobs/{job_id}/prep", response_model=PrepRead, summary="Interview prep pack")
+async def get_prep(
+    job_id: uuid.UUID, request: Request, db: DbSession, user: ApprovedUser
+) -> PrepRead:
+    record = await prep_for(db, user.id, job_id)
+    running = await running_prep(db, user.id, job_id)
+    job = await db.get(Job, job_id)
+    return PrepRead(
+        job_id=job_id,
+        pack=record.pack if record else None,
+        updated_at=record.updated_at if record else None,
+        pdf_url=download_url(
+            request.app.state.settings,
+            user.id,
+            key=record.file_key,
+            filename=f"Interview prep - {job.company if job else 'job'}.pdf",
+            content_type=PDF_MIME,
+        )
+        if record and record.file_key
+        else None,
+        running_task_id=running.id if running else None,
+    )
+
+
+@router.post(
+    "/jobs/{job_id}/prep",
+    response_model=TaskCreated,
+    status_code=status.HTTP_202_ACCEPTED,
+    summary="Make (or refresh) the interview prep pack (one AI call)",
+)
+async def make_prep(
+    job_id: uuid.UUID, request: Request, db: DbSession, user: ApprovedUser
+) -> TaskCreated:
+    task = await queue_prep(db, user.id, job_id, request.app.state.dispatcher)
+    assert task is not None
+    return TaskCreated(task_id=task.id)

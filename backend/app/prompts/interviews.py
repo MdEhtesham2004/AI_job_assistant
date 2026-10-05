@@ -66,6 +66,7 @@ def plan_messages(
     minutes: int,
     avoid_questions: list[str],
     retry_questions: list[str],
+    focus_questions: list[str] | None = None,
 ) -> list[Message]:
     rules = [
         f"Round focus: {ROUND_FOCUS.get(round_type, ROUND_FOCUS['mixed'])}.",
@@ -84,7 +85,13 @@ def plan_messages(
             "allows, one question (kind 'gap') should probe the most important of these "
             "kindly, e.g. how they would get up to speed."
         )
-    if retry_questions:
+    if focus_questions:
+        rules.append(
+            "The candidate is rehearsing a real upcoming interview for this job. Use these "
+            "likely questions as the core questions (rephrase slightly; keep their meaning): "
+            + " | ".join(focus_questions[:3])
+        )
+    elif retry_questions:
         rules.append(
             "This is a retry of weak answers. Use these questions (you may rephrase "
             "slightly): " + " | ".join(retry_questions[:3])

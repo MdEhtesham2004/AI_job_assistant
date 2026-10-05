@@ -43,6 +43,12 @@ celery_app.conf.update(
             "schedule": 300.0,
             "options": {"queue": "default", "expires": 290},
         },
+        # Phase 17: prep packs for applications that reached Interview (e.g. by a reply).
+        "interview-preps-due": {
+            "task": "tasks.dispatch_preps",
+            "schedule": 300.0,
+            "options": {"queue": "default", "expires": 290},
+        },
         # Phase 16: daily best-matches digest once the user's local hour has come.
         "digests-due": {
             "task": "tasks.dispatch_digests",

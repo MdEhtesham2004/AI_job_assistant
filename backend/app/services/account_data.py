@@ -27,7 +27,7 @@ from app.models.analysis import JobAnalysis
 from app.models.applications import Application, ApplicationStatusHistory
 from app.models.documents import CoverLetter
 from app.models.enums import ActorType, UserRole
-from app.models.hunt import Digest, ScreeningAnswers, SkillPlanRecord
+from app.models.hunt import Digest, InterviewPrep, ScreeningAnswers, SkillPlanRecord
 from app.models.interviews import Interview, InterviewReport, InterviewTurn
 from app.models.jobs import Job, JobSearchRun, SavedSearch, UserJob
 from app.models.outreach import Contact, DoNotContact, Email, EmailAttachment, ReplyClassification
@@ -54,6 +54,7 @@ OWNED_TABLES: list[tuple[str, Any]] = [
     ("digests", Digest),
     ("skill_plans", SkillPlanRecord),
     ("screening_answers", ScreeningAnswers),
+    ("interview_preps", InterviewPrep),
     ("applications", Application),
     ("application_history", ApplicationStatusHistory),
     ("contacts", Contact),

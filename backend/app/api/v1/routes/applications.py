@@ -6,6 +6,7 @@ from fastapi import APIRouter, Query, Request, Response, status
 
 from app.api.deps import ApprovedUser, DbSession
 from app.core.config import Settings
+from app.core.errors import AppError
 from app.models.enums import ApplicationChannel, ApplicationStatus
 from app.repositories.applications import ApplicationFilters
 from app.schemas.applications import (
@@ -24,6 +25,7 @@ from app.schemas.applications import (
 )
 from app.schemas.common import Page
 from app.services.applications import ApplicationService, ApplicationView
+from app.services.prep import queue_prep
 from app.services.tasks import download_url
 
 router = APIRouter(tags=["applications"])
@@ -236,6 +238,14 @@ async def change_status(
 ) -> ApplicationDetail:
     svc = service(db, user)
     application = await svc.transition(application_id, body.to_status, note=body.note)
+    if application.status is ApplicationStatus.INTERVIEW:
+        # Phase 17: start the interview prep pack right away (once; best effort).
+        try:
+            await queue_prep(
+                db, user.id, application.job_id, request.app.state.dispatcher, automatic=True
+            )
+        except AppError:
+            await db.rollback()  # e.g. no parsed resume: the move itself is already saved
     return to_detail(await svc.view(application), request.app.state.settings)
 
 

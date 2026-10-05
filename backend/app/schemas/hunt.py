@@ -73,3 +73,11 @@ class AnswersRequest(BaseModel):
 
 class AnswerEdit(BaseModel):
     answer: str = Field(min_length=1, max_length=4000)
+
+
+class PrepRead(BaseModel):
+    job_id: uuid.UUID
+    pack: dict[str, Any] | None
+    updated_at: datetime | None
+    pdf_url: str | None
+    running_task_id: uuid.UUID | None

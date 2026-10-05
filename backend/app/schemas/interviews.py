@@ -18,6 +18,7 @@ class InterviewCreate(BaseModel):
     round: InterviewRound = InterviewRound.MIXED
     difficulty: InterviewDifficulty = InterviewDifficulty.MID
     retry_of_id: uuid.UUID | None = None  # "Retry weak questions" of an earlier interview
+    from_prep: bool = False  # rehearse the interview prep pack's likely questions
 
 
 class InterviewCreated(BaseModel):

@@ -48,6 +48,30 @@ class SkillPlanRecord(UUIDPrimaryKeyMixin, CreatedAtMixin, Base):
     __table_args__ = (Index("ix_skill_plans_user_id_created_at", "user_id", "created_at"),)
 
 
+class InterviewPrep(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+    """Phase 17 — a one-page preparation pack for a real interview at one job."""
+
+    __tablename__ = "interview_preps"
+
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    job_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("jobs.id", ondelete="CASCADE"), nullable=False
+    )
+    application_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("applications.id", ondelete="SET NULL")
+    )
+    pack: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
+    file_key: Mapped[str | None] = mapped_column(Text)
+    model: Mapped[str] = mapped_column(Text, nullable=False)
+    prompt_version: Mapped[str] = mapped_column(Text, nullable=False)
+
+    __table_args__ = (
+        UniqueConstraint("user_id", "job_id", name="uq_interview_preps_user_id_job_id"),
+    )
+
+
 class ScreeningAnswers(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     """Ready-to-paste answers to application-form questions for one job."""
 
