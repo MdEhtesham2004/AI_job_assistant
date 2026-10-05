@@ -121,6 +121,9 @@ class Profile(TimestampMixin, Base):
     timezone: Mapped[str] = mapped_column(
         Text, nullable=False, default="Asia/Kolkata", server_default="Asia/Kolkata"
     )
+    # Phase 16 screening answers: facts a resume does not hold (never guessed by the AI).
+    notice_period: Mapped[str | None] = mapped_column(Text)
+    expected_salary: Mapped[str | None] = mapped_column(Text)
 
 
 class UserSettings(TimestampMixin, Base):
@@ -199,6 +202,19 @@ class UserSettings(TimestampMixin, Base):
     monthly_ai_budget_usd: Mapped[Decimal] = mapped_column(
         Numeric(8, 2), nullable=False, default=Decimal("5.00"), server_default=text("5.00")
     )
+    # Phase 16 daily best-matches digest (local time from Profile.timezone).
+    digest_enabled: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=True, server_default=text("true")
+    )
+    digest_hour: Mapped[int] = mapped_column(
+        SmallInteger, nullable=False, default=8, server_default=text("8")
+    )
+    digest_min_score: Mapped[int] = mapped_column(
+        SmallInteger, nullable=False, default=70, server_default=text("70")
+    )
+    digest_email: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=True, server_default=text("true")
+    )
 
     __table_args__ = (
         CheckConstraint(
@@ -213,5 +229,9 @@ class UserSettings(TimestampMixin, Base):
         ),
         CheckConstraint(
             "automation_min_score BETWEEN 0 AND 100", name="automation_min_score_range"
+        ),
+        CheckConstraint(
+            "digest_hour BETWEEN 0 AND 23 AND digest_min_score BETWEEN 0 AND 100",
+            name="digest_range",
         ),
     )

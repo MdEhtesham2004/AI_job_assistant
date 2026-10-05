@@ -41,6 +41,12 @@ class ProfileRead(BaseModel):
     headline: str | None
     links: dict[str, str]
     timezone: str
+    # Phase 16: used in screening answers (never guessed by the AI).
+    notice_period: str | None = None
+    expected_salary: str | None = None
+
+
+ShortFact = Annotated[str, StringConstraints(strip_whitespace=True, max_length=100)]
 
 
 class ProfileUpdate(BaseModel):
@@ -49,6 +55,8 @@ class ProfileUpdate(BaseModel):
     headline: Annotated[str, StringConstraints(strip_whitespace=True, max_length=220)] | None = None
     links: ProfileLinks = Field(default_factory=ProfileLinks)
     timezone: str = "Asia/Kolkata"
+    notice_period: ShortFact | None = None
+    expected_salary: ShortFact | None = None
 
     @field_validator("timezone")
     @classmethod
@@ -57,7 +65,7 @@ class ProfileUpdate(BaseModel):
             raise ValueError("Unknown time zone.")
         return value
 
-    @field_validator("phone", "location", "headline")
+    @field_validator("phone", "location", "headline", "notice_period", "expected_salary")
     @classmethod
     def _blank_to_none(cls, value: str | None) -> str | None:
         return value or None
@@ -108,6 +116,10 @@ class SettingsRead(BaseModel):
     automation_tailor: bool
     automation_cover_letter: bool
     monthly_ai_budget_usd: Decimal
+    digest_enabled: bool
+    digest_hour: int
+    digest_min_score: int
+    digest_email: bool
 
 
 class SettingsUpdate(BaseModel):
@@ -135,6 +147,10 @@ class SettingsUpdate(BaseModel):
     automation_tailor: bool | None = None
     automation_cover_letter: bool | None = None
     monthly_ai_budget_usd: Annotated[Decimal, Field(ge=0, le=1000, decimal_places=2)] | None = None
+    digest_enabled: bool | None = None
+    digest_hour: Annotated[int, Field(ge=0, le=23)] | None = None
+    digest_min_score: Percent | None = None
+    digest_email: bool | None = None
 
     @field_validator("automation_keywords")
     @classmethod

@@ -212,6 +212,9 @@ async def _resume_for(
     return version
 
 
+resume_for_job = _resume_for  # also used by the screening answers (Phase 16)
+
+
 async def _missing_skills(
     session: AsyncSession, user_id: uuid.UUID, job_id: uuid.UUID, version: ResumeVersion
 ) -> list[str]:

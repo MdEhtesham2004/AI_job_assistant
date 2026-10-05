@@ -77,10 +77,12 @@ def build_message(
     idempotency: str,
     message_id: str | None = None,
     in_reply_to: str | None = None,
+    html: str | None = None,
 ) -> tuple[bytes, str]:
     """The RFC 5322 message and the Message-ID we set (Gmail may replace it).
 
     `in_reply_to`: the Message-ID Gmail gave the original — follow-ups join its thread.
+    `html`: optional HTML version of `body` (multipart/alternative; e.g. the daily digest).
     """
     message = EmailMessage(policy=SMTP)
     local, _, domain = from_address.partition("@")
@@ -95,6 +97,8 @@ def build_message(
         message["In-Reply-To"] = in_reply_to
         message["References"] = in_reply_to
     message.set_content(body)
+    if html:
+        message.add_alternative(html, subtype="html")
     for item in attachments:
         maintype, _, subtype = item.mime_type.partition("/")
         message.add_attachment(

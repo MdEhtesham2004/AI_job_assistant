@@ -28,6 +28,8 @@ def test_profile_starts_empty_with_default_timezone(
         "headline": None,
         "links": {},
         "timezone": "Asia/Kolkata",
+        "notice_period": None,
+        "expected_salary": None,
     }
 
 
