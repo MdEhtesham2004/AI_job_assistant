@@ -124,6 +124,38 @@ class Settings(BaseSettings):
     send_window_start_hour: int = 9
     send_jitter_seconds: int = 30
 
+    # --- AI mock interview (Phase 15): OpenAI Realtime, speech-to-speech over WebRTC ---
+    # A real OpenAI key (platform.openai.com). Not OPENAI_API_KEY: that name is read as the
+    # OpenRouter key above.
+    realtime_api_key: str = Field(
+        default="", repr=False, validation_alias=AliasChoices("OPENAI_REALTIME_API_KEY")
+    )
+    realtime_base_url: str = "https://api.openai.com/v1"
+    realtime_model: str = "gpt-realtime-mini"
+    realtime_voice: str = "marin"
+    realtime_transcription_model: str = "gpt-4o-mini-transcribe"
+    # Short-lived browser token: only long enough to connect (the call itself may run on).
+    realtime_token_seconds: int = Field(default=120, ge=10, le=7200)
+    # Rough price for the cost estimate (USD per interview minute; 0 = unknown).
+    realtime_cost_per_minute_usd: float = Field(default=0.10, ge=0)
+
+    # Gemini Live (Google AI Studio key): the alternative voice service, WebSocket-based.
+    gemini_api_key: str = Field(
+        default="", repr=False, validation_alias=AliasChoices("GEMINI_API_KEY")
+    )
+    gemini_base_url: str = "https://generativelanguage.googleapis.com"
+    gemini_live_model: str = "gemini-2.5-flash-native-audio-latest"
+    gemini_live_voice: str = "Aoede"  # a warm, friendly prebuilt voice
+    gemini_cost_per_minute_usd: float = Field(default=0.04, ge=0)
+    # Which service runs the interviewer: auto = Gemini when its key is set, else OpenAI.
+    interview_voice_provider: Literal["auto", "gemini", "openai"] = "auto"
+
+    @property
+    def voice_provider(self) -> Literal["gemini", "openai"]:
+        if self.interview_voice_provider != "auto":
+            return self.interview_voice_provider
+        return "gemini" if self.gemini_api_key else "openai"
+
     # --- Paid data APIs: cost control (Phase 14) ---
     # Identical searches within this window reuse stored results (shared by all users).
     jsearch_cache_hours: float = Field(default=12, ge=0)

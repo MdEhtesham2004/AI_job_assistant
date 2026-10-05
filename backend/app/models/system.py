@@ -167,8 +167,18 @@ class AppSettings(TimestampMixin, Base):
         Boolean, nullable=False, default=True, server_default=text("true")
     )
 
+    # AI mock interview (Phase 15): started interviews per user per month; call length.
+    interviews_per_month: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=10, server_default=text("10")
+    )
+    interview_minutes: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=6, server_default=text("6")
+    )
+
     __table_args__ = (
         CheckConstraint("id = 1", name="single_row"),
+        CheckConstraint("interviews_per_month >= 0", name="interviews_non_negative"),
+        CheckConstraint("interview_minutes BETWEEN 2 AND 30", name="interview_minutes_range"),
         CheckConstraint(
             "jsearch_requests_per_month >= 0 AND apify_posts_per_month >= 0 "
             "AND apify_runs_per_day >= 0",

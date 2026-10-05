@@ -5,6 +5,7 @@ from app.workers.handlers import (  # noqa: F401
     automation,
     diagnostics,
     documents,
+    interviews,
     jobs,
     outreach,
     resumes,

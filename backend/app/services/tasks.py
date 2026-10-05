@@ -27,6 +27,8 @@ TASK_QUEUES: dict[str, str] = {
     "job_analyze_batch": "ai",
     "resume_tailor": "ai",
     "cover_letter": "ai",
+    "interview_plan": "ai",
+    "interview_report": "ai",
     "contact_discover": "default",
     "email_draft": "ai",
     "email_send": "email",

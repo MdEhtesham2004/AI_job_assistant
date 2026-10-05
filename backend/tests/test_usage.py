@@ -189,6 +189,8 @@ def test_admin_sets_quotas_and_sees_provider_usage(
         "apify_max_posts_per_fetch": 25,
         "jsearch_max_pages": 1,
         "jsearch_allow_load_more": True,
+        "interviews_per_month": 10,
+        "interview_minutes": 6,
     }
     assert (
         client.patch(

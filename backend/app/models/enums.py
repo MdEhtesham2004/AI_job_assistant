@@ -193,3 +193,40 @@ class NotificationSeverity(StrEnum):
     SUCCESS = "success"
     WARNING = "warning"
     ERROR = "error"
+
+
+# ---------- Phase 15: AI mock interview ----------
+
+
+class InterviewStatus(StrEnum):
+    PLANNING = "planning"  # AI is writing the plan
+    READY = "ready"  # plan done, waiting for the user to start
+    IN_PROGRESS = "in_progress"  # voice call running
+    ENDED = "ended"  # call over: transcript can be reviewed, report not yet made
+    REPORTING = "reporting"  # AI is writing the report
+    COMPLETED = "completed"  # report ready
+    FAILED = "failed"  # plan or report could not be made
+
+
+class InterviewRound(StrEnum):
+    MIXED = "mixed"
+    HR = "hr"
+    TECHNICAL = "technical"
+    BEHAVIORAL = "behavioral"
+
+
+class InterviewDifficulty(StrEnum):
+    ENTRY = "entry"
+    MID = "mid"
+    SENIOR = "senior"
+
+
+class InterviewSpeaker(StrEnum):
+    INTERVIEWER = "interviewer"
+    CANDIDATE = "candidate"
+
+
+class InterviewVerdict(StrEnum):
+    READY = "ready"  # ready for the screen
+    ALMOST = "almost"  # almost there
+    PRACTICE = "practice"  # needs practice
