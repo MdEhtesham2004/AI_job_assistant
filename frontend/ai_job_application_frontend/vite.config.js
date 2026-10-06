@@ -17,6 +17,16 @@ export default defineConfig(({ mode }) => {
     },
     server: {
       port: 5173,
+      // Vite answers only for localhost unless a host is listed here (DNS-rebinding guard).
+      // ngrok tunnels for sharing the dev app; add more with VITE_ALLOWED_HOSTS=a.com,b.com
+      allowedHosts: [
+        '.ngrok-free.dev',
+        '.ngrok-free.app',
+        ...(env.VITE_ALLOWED_HOSTS ?? '')
+          .split(',')
+          .map((host) => host.trim())
+          .filter(Boolean),
+      ],
       proxy: {
         // Dev only: forward API calls to the local FastAPI backend.
         '/api': {
