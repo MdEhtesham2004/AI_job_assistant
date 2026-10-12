@@ -146,8 +146,20 @@ class SavedSearch(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         Boolean, nullable=False, default=True, server_default="true"
     )
     last_run_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # Phase 19: "jobs" (JSearch) or "linkedin" (recruiter emails from LinkedIn hiring posts;
+    # only for users the admin allowed). LinkedIn uses `keywords`, `posted_limit`, `max_posts`.
+    kind: Mapped[str] = mapped_column(Text, nullable=False, default="jobs", server_default="jobs")
+    posted_limit: Mapped[str] = mapped_column(
+        Text, nullable=False, default="24h", server_default="24h"
+    )
+    max_posts: Mapped[int] = mapped_column(Integer, nullable=False, default=25, server_default="25")
 
-    __table_args__ = (Index("ix_saved_searches_user_id", "user_id"),)
+    __table_args__ = (
+        Index("ix_saved_searches_user_id", "user_id"),
+        CheckConstraint("kind IN ('jobs', 'linkedin')", name="kind_valid"),
+        CheckConstraint("posted_limit IN ('24h', 'week', 'month')", name="posted_limit_valid"),
+        CheckConstraint("max_posts BETWEEN 5 AND 200", name="max_posts_range"),
+    )
 
 
 class JobSearchRun(UUIDPrimaryKeyMixin, TimestampMixin, Base):

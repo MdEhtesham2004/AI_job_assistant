@@ -442,6 +442,79 @@ def test_scheduler_starts_only_due_searches(
     assert db(migrated_database, "SELECT count(*) FROM job_search_runs")[0][0] == 2
 
 
+def test_recruiter_email_searches_only_for_users_the_admin_allows(
+    client: TestClient, migrated_database: str, settings: Settings
+) -> None:
+    """Phase 19: per-user admin switch; scheduled runs start a LinkedIn contact fetch."""
+    _, admin = make_user(client, migrated_database, "admin@example.com", role="admin")
+    user_id, user = make_user(client, migrated_database, "a@example.com")
+    client.patch("/api/v1/users/me/settings", json={"linkedin_source_enabled": True}, headers=user)
+    body = {"name": "RN emails", "keywords": "React Native", "kind": "linkedin"}
+
+    denied = client.post(SAVED, json=body, headers=user)
+    assert denied.status_code == 403
+    assert denied.json()["error"]["code"] == "LINKEDIN_SCHEDULE_NOT_ALLOWED"
+    assert (
+        client.patch(
+            f"/api/v1/admin/users/{user_id}/permissions",
+            json={"linkedin_schedule_allowed": True},
+            headers=user,
+        ).status_code
+        == 403
+    )  # users cannot allow themselves
+
+    allow = client.patch(
+        f"/api/v1/admin/users/{user_id}/permissions",
+        json={"linkedin_schedule_allowed": True},
+        headers=admin,
+    )
+    assert allow.json()["linkedin_schedule_allowed"] is True
+    assert client.get("/api/v1/users/me/settings", headers=user).json()["linkedin_schedule_allowed"]
+    saved = client.post(SAVED, json=body, headers=user).json()
+    assert (saved["kind"], saved["schedule_cron"], saved["posted_limit"]) == (
+        "linkedin",
+        "0 9 * * *",
+        "24h",
+    )
+    started = client.post(f"{SAVED}/{saved['id']}/run", headers=user).json()
+    assert started["run_id"] is None
+    task = client.get(f"/api/v1/tasks/{started['task_id']}", headers=user).json()
+    assert task["type"] == "contact_discover"
+
+    def tick(now: datetime) -> list[str]:
+        async def go() -> list[str]:
+            dispatcher = RecordingDispatcher()
+            engine = create_engine(settings)
+            async with create_session_factory(engine)() as session:
+                await dispatch_due_searches(session, settings, dispatcher, now)
+            await engine.dispose()
+            return [kind for _, kind in dispatcher.sent]
+
+        return asyncio.run(go())
+
+    db(
+        migrated_database,
+        "UPDATE saved_searches SET last_run_at = :t",
+        t=datetime(2026, 1, 1, tzinfo=UTC),
+    )
+    assert tick(datetime(2026, 1, 2, 12, tzinfo=UTC)) == ["contact_discover"]
+
+    client.patch(
+        f"/api/v1/admin/users/{user_id}/permissions",
+        json={"linkedin_schedule_allowed": False},
+        headers=admin,
+    )
+    db(
+        migrated_database,
+        "UPDATE saved_searches SET last_run_at = :t",
+        t=datetime(2026, 1, 1, tzinfo=UTC),
+    )
+    assert tick(datetime(2026, 1, 2, 12, tzinfo=UTC)) == []  # switched off: stops running
+    listed = client.get(SAVED, headers=user).json()[0]
+    assert listed["paused_reason"] and listed["next_run_at"] is None
+    assert client.post(f"{SAVED}/{saved['id']}/run", headers=user).status_code == 403
+
+
 # ---------- admin change requests: labels, load more, pages, CSV ----------
 
 

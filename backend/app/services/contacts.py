@@ -487,27 +487,13 @@ class ContactService:
         self, keyword: str, *, max_posts: int, posted_limit: PostedLimit
     ) -> Task:
         assert self.dispatcher is not None
-        keyword = " ".join(keyword.split())
-        if len(keyword) < 2:
-            raise ValidationAppError("Enter a role or skill to search for.")
-        user_settings = await UserSettingsRepository(
-            self.session, owner_id=self.user_id
-        ).get_or_create()
-        if not user_settings.linkedin_source_enabled:
-            raise ConflictError(
-                "Turn on 'LinkedIn hiring posts' in Settings first.", code="LINKEDIN_DISABLED"
-            )
-        # Cost control (Phase 14): Apify bills per post; the admin caps posts per fetch.
-        cap = (await app_settings(self.session)).apify_max_posts_per_fetch
-        if max_posts > cap:
-            raise ValidationAppError(
-                f"A LinkedIn fetch can read at most {cap} posts.",
-                code="TOO_MANY_POSTS",
-                details={"max_posts": cap},
-            )
-        return await TaskService(self.session, self.user_id, self.dispatcher).create(
-            "contact_discover",
-            {"keyword": keyword, "max_posts": max_posts, "posted_limit": posted_limit},
+        return await start_linkedin_discovery(
+            self.session,
+            self.user_id,
+            self.dispatcher,
+            keyword=keyword,
+            max_posts=max_posts,
+            posted_limit=posted_limit,
         )
 
     # ---------- do-not-contact ----------
@@ -554,3 +540,35 @@ class ContactService:
             raise NotFoundError("Entry not found.")
         await self.session.delete(entry)
         await self.session.commit()
+
+
+async def start_linkedin_discovery(
+    session: AsyncSession,
+    user_id: uuid.UUID,
+    dispatcher: TaskDispatcher,
+    *,
+    keyword: str,
+    max_posts: int,
+    posted_limit: PostedLimit,
+) -> Task:
+    """Queue a LinkedIn hiring-post fetch (Contacts page, and scheduled saved searches)."""
+    keyword = " ".join(keyword.split())
+    if len(keyword) < 2:
+        raise ValidationAppError("Enter a role or skill to search for.")
+    user_settings = await UserSettingsRepository(session, owner_id=user_id).get_or_create()
+    if not user_settings.linkedin_source_enabled:
+        raise ConflictError(
+            "Turn on 'LinkedIn hiring posts' in Settings first.", code="LINKEDIN_DISABLED"
+        )
+    # Cost control (Phase 14): Apify bills per post; the admin caps posts per fetch.
+    cap = (await app_settings(session)).apify_max_posts_per_fetch
+    if max_posts > cap:
+        raise ValidationAppError(
+            f"A LinkedIn fetch can read at most {cap} posts.",
+            code="TOO_MANY_POSTS",
+            details={"max_posts": cap},
+        )
+    return await TaskService(session, user_id, dispatcher).create(
+        "contact_discover",
+        {"keyword": keyword, "max_posts": max_posts, "posted_limit": posted_limit},
+    )

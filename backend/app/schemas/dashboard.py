@@ -43,3 +43,5 @@ class DashboardRead(BaseModel):
     by_source: list[RateRead]
     by_resume: list[RateRead]
     activity: list[ActivityRead]
+    # Phase 18: resume / jobs / scored / application / gmail — first steps done.
+    getting_started: dict[str, bool] = {}

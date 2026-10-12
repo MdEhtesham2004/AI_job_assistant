@@ -79,6 +79,14 @@ def test_dashboard_numbers_match_the_applications(
     assert data["by_resume"][0]["key"] == "master"
     assert data["activity"][0]["to_status"] == "offer"
     assert c
+    # Phase 18 checklist: nothing scored and no Gmail yet.
+    assert data["getting_started"] == {
+        "resume": True,
+        "jobs": True,
+        "scored": False,
+        "application": True,
+        "gmail": False,
+    }
 
 
 def test_dashboard_is_private(
@@ -95,6 +103,7 @@ def test_dashboard_is_private(
 
     assert mine["jobs_found"] == 0 and sum(mine["statuses"].values()) == 0
     assert mine["activity"] == []
+    assert not any(mine["getting_started"].values())  # nothing of Alice's counts for Bob
 
 
 # ---------- notification centre ----------

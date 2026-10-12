@@ -21,6 +21,7 @@ def service(request: Request, db: DbSession, user: ApprovedUser) -> SavedSearchS
 
 
 async def to_read(svc: SavedSearchService, saved: SavedSearch) -> SavedSearchRead:
+    paused = saved.kind == "linkedin" and not await svc.linkedin_allowed()
     return SavedSearchRead(
         id=saved.id,
         name=saved.name,
@@ -32,8 +33,12 @@ async def to_read(svc: SavedSearchService, saved: SavedSearch) -> SavedSearchRea
         schedule_cron=saved.schedule_cron,
         is_active=saved.is_active,
         last_run_at=saved.last_run_at,
-        next_run_at=svc.next_run_at(saved, await svc.timezone()),
+        next_run_at=None if paused else svc.next_run_at(saved, await svc.timezone()),
         created_at=saved.created_at,
+        kind=saved.kind,
+        posted_limit=saved.posted_limit,
+        max_posts=saved.max_posts,
+        paused_reason="Recruiter-email searches were turned off by an admin." if paused else None,
     )
 
 
@@ -85,4 +90,4 @@ async def run_saved(
     search_id: uuid.UUID, request: Request, db: DbSession, user: ApprovedUser
 ) -> JobSearchStarted:
     run, task_id = await service(request, db, user).run_now(search_id)
-    return JobSearchStarted(task_id=task_id, run_id=run.id)
+    return JobSearchStarted(task_id=task_id, run_id=run.id if run else None)

@@ -15,6 +15,12 @@ class AdminUserRead(UserRead):
     approved_by: uuid.UUID | None
     rejection_reason: str | None
     updated_at: datetime
+    # Phase 19: may schedule recruiter-email (LinkedIn) saved searches — admin-controlled.
+    linkedin_schedule_allowed: bool = False
+
+
+class PermissionsUpdate(BaseModel):
+    linkedin_schedule_allowed: bool
 
 
 class UserStatusCounts(BaseModel):

@@ -48,7 +48,7 @@ class JobSearchRequest(BaseModel):
 
 class JobSearchStarted(BaseModel):
     task_id: uuid.UUID
-    run_id: uuid.UUID
+    run_id: uuid.UUID | None  # None for a recruiter-email (LinkedIn) saved search
 
 
 class JobSummary(BaseModel):
@@ -200,6 +200,10 @@ class SavedSearchBase(BaseModel):
     country: str = Field(default="in", pattern=r"^[a-zA-Z]{2}$")
     schedule_cron: str = Field(default="0 8 * * *", max_length=100)
     is_active: bool = True
+    # Phase 19: "linkedin" = recruiter emails from LinkedIn hiring posts (admin-allowed users).
+    kind: Literal["jobs", "linkedin"] = "jobs"
+    posted_limit: Literal["24h", "week", "month"] = "24h"
+    max_posts: int = Field(default=25, ge=5, le=200)
 
     _clean_text = field_validator("name", "keywords", "location")(_clean)
 
@@ -217,6 +221,8 @@ class SavedSearchUpdate(BaseModel):
     country: str | None = Field(default=None, pattern=r"^[a-zA-Z]{2}$")
     schedule_cron: str | None = Field(default=None, max_length=100)
     is_active: bool | None = None
+    posted_limit: Literal["24h", "week", "month"] | None = None
+    max_posts: int | None = Field(default=None, ge=5, le=200)
 
 
 class SavedSearchRead(BaseModel):
@@ -232,3 +238,7 @@ class SavedSearchRead(BaseModel):
     last_run_at: datetime | None
     next_run_at: datetime | None
     created_at: datetime
+    kind: str = "jobs"
+    posted_limit: str = "24h"
+    max_posts: int = 25
+    paused_reason: str | None = None  # e.g. the admin switched recruiter-email searches off
