@@ -215,6 +215,10 @@ class UserSettings(TimestampMixin, Base):
     digest_email: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=True, server_default=text("true")
     )
+    # Phase 19: scheduled recruiter-email (LinkedIn) saved searches — set by an ADMIN only.
+    linkedin_schedule_allowed: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default=text("false")
+    )
 
     __table_args__ = (
         CheckConstraint(

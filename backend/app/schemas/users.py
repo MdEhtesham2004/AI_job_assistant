@@ -120,6 +120,8 @@ class SettingsRead(BaseModel):
     digest_hour: int
     digest_min_score: int
     digest_email: bool
+    # Phase 19: set by an admin (read-only here; not in SettingsUpdate).
+    linkedin_schedule_allowed: bool = False
 
 
 class SettingsUpdate(BaseModel):

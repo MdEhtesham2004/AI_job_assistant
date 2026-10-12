@@ -5,7 +5,7 @@ Stage counts use the same grouping as the Applications board, so both pages agre
 """
 
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import Any
@@ -13,16 +13,19 @@ from typing import Any
 from sqlalchemy import case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.models.analysis import JobAnalysis
 from app.models.applications import Application, ApplicationStatusHistory
 from app.models.enums import (
     ApplicationStatus,
     EmailDirection,
     EmailStatus,
+    OAuthStatus,
+    ParseStatus,
     TaskStatus,
     UserJobState,
 )
 from app.models.jobs import Job, UserJob
-from app.models.outreach import Email
+from app.models.outreach import Email, OAuthAccount
 from app.models.resumes import ResumeVersion
 from app.models.system import AiCall, Task
 
@@ -80,6 +83,8 @@ class Dashboard:
     by_source: list[RateRow]
     by_resume: list[RateRow]
     activity: list[Activity]
+    # Phase 18 "Getting started" checklist: which first steps the user has done.
+    getting_started: dict[str, bool] = field(default_factory=dict)
 
     @property
     def response_rate(self) -> float | None:
@@ -194,7 +199,27 @@ async def build(
         for entry, title, company in activity_rows.all()
     ]
 
+    async def exists(query: Any) -> bool:
+        return bool(await session.scalar(select(query.exists())))
+
+    getting_started = {
+        "resume": await exists(
+            select(ResumeVersion.id).where(
+                ResumeVersion.user_id == user_id, ResumeVersion.parse_status == ParseStatus.PARSED
+            )
+        ),
+        "jobs": bool(jobs_found),
+        "scored": await exists(select(JobAnalysis.id).where(JobAnalysis.user_id == user_id)),
+        "application": await exists(select(Application.id).where(Application.user_id == user_id)),
+        "gmail": await exists(
+            select(OAuthAccount.id).where(
+                OAuthAccount.user_id == user_id, OAuthAccount.status == OAuthStatus.CONNECTED
+            )
+        ),
+    }
+
     return Dashboard(
+        getting_started=getting_started,
         jobs_found=jobs_found or 0,
         jobs_new_this_week=jobs_week or 0,
         statuses=statuses,

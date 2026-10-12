@@ -35,4 +35,5 @@ async def dashboard(db: DbSession, user: ApprovedUser) -> DashboardRead:
             for r in data.by_resume
         ],
         activity=[ActivityRead(**a.__dict__) for a in data.activity],
+        getting_started=data.getting_started,
     )
