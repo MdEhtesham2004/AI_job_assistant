@@ -81,6 +81,7 @@ export const queryKeys = {
   },
   tasks: {
     all: () => ['tasks'],
+    lists: () => ['tasks', 'list'],
     list: (page) => ['tasks', 'list', page],
     detail: (id) => ['tasks', 'detail', id],
   },

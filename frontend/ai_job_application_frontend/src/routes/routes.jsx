@@ -1,5 +1,8 @@
+import { Navigate } from 'react-router'
+
 import { AppLayout } from '@/layouts/AppLayout'
 import { AuthLayout } from '@/layouts/AuthLayout'
+import { SectionLayout } from '@/layouts/SectionLayout'
 import AdminUsersPage from '@/pages/admin/AdminUsersPage'
 import AnalyticsPage from '@/pages/admin/AnalyticsPage'
 import AuditLogPage from '@/pages/admin/AuditLogPage'
@@ -28,7 +31,6 @@ import ResumesPage from '@/pages/ResumesPage'
 import ResumeVersionPage from '@/pages/ResumeVersionPage'
 import RouteErrorPage from '@/pages/RouteErrorPage'
 import SavedSearchesPage from '@/pages/SavedSearchesPage'
-import ScanPage from '@/pages/ScanPage'
 import SearchRunPage from '@/pages/SearchRunPage'
 import SettingsPage from '@/pages/SettingsPage'
 import SystemStatusPage from '@/pages/SystemStatusPage'
@@ -73,28 +75,50 @@ export const routes = [
         ),
         children: [
           { index: true, element: <HomePage /> },
-          { path: 'jobs', element: <JobsPage /> },
-          { path: 'jobs/search', element: <JobSearchPage /> },
-          { path: 'jobs/saved', element: <SavedSearchesPage /> },
-          { path: 'jobs/scan', element: <ScanPage /> },
+          // Phase 18: one sidebar item per area, its pages as tabs.
+          {
+            element: <SectionLayout section="jobs" />,
+            children: [
+              { path: 'jobs', element: <JobsPage /> },
+              { path: 'jobs/search', element: <JobSearchPage /> },
+              { path: 'jobs/saved', element: <SavedSearchesPage /> },
+            ],
+          },
+          {
+            element: <SectionLayout section="prepare" />,
+            children: [
+              { path: 'interviews', element: <InterviewsPage /> },
+              { path: 'skills', element: <SkillsPage /> },
+            ],
+          },
+          {
+            element: <SectionLayout section="outreach" />,
+            children: [
+              { path: 'contacts', element: <ContactsPage /> },
+              { path: 'outbox', element: <OutboxPage /> },
+            ],
+          },
+          {
+            element: <SectionLayout section="settings" />,
+            children: [
+              { path: 'profile', element: <ProfilePage /> },
+              { path: 'settings', element: <SettingsPage /> },
+            ],
+          },
+          // Scan was removed (Phase 18): its paste form is "Add a job" on Jobs.
+          { path: 'jobs/scan', element: <Navigate to="/jobs" replace /> },
           { path: 'jobs/searches/:runId', element: <SearchRunPage /> },
           { path: 'jobs/:jobId', element: <JobDetailPage /> },
           { path: 'jobs/:jobId/tailored', element: <TailoredResumePage /> },
           { path: 'jobs/:jobId/cover-letter', element: <CoverLetterPage /> },
           { path: 'applications', element: <ApplicationsPage /> },
           { path: 'applications/:applicationId', element: <ApplicationDetailPage /> },
-          { path: 'contacts', element: <ContactsPage /> },
-          { path: 'outbox', element: <OutboxPage /> },
           { path: 'resumes', element: <ResumesPage /> },
           { path: 'resumes/:versionId', element: <ResumeVersionPage /> },
           { path: 'tasks', element: <TasksPage /> },
-          { path: 'profile', element: <ProfilePage /> },
-          { path: 'settings', element: <SettingsPage /> },
           { path: 'account/password', element: <ChangePasswordPage /> },
           { path: 'notifications', element: <NotificationsPage /> },
           { path: 'jobs/import', element: <ImportPage /> },
-          { path: 'interviews', element: <InterviewsPage /> },
-          { path: 'skills', element: <SkillsPage /> },
           { path: 'jobs/:jobId/prep', element: <InterviewPrepPage /> },
           { path: 'interviews/:interviewId', element: <InterviewPage /> },
           { path: 'admin/users', element: admin(<AdminUsersPage />) },

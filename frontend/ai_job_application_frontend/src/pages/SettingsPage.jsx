@@ -89,88 +89,40 @@ function SettingsForm({ settings }) {
       <FormError message={errors.root?.server?.message} />
 
       <Section
-        title="Job matching"
-        description="How jobs are scored against your resume."
-        usedFrom="Phase 9"
+        title="Daily digest"
+        description="Every morning: your best new matches, scored for you (up to 20 new jobs a day), in the app and — when Gmail is connected — by email to yourself."
       >
+        <div className="sm:col-span-2">
+          <CheckboxField label="Send me a daily digest" registration={register('digest_enabled')} />
+        </div>
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="digest-hour">Time (your time zone, from Profile)</Label>
+          <Select id="digest-hour" {...register('digest_hour', num)}>
+            {Array.from({ length: 24 }, (_, h) => (
+              <option key={h} value={h}>
+                {String(h).padStart(2, '0')}:00
+              </option>
+            ))}
+          </Select>
+        </div>
         <FormField
-          label="Use master resume at score ≥"
+          label="Only jobs scoring at least"
           type="number"
-          registration={register('threshold_use_master', num)}
-          error={errors.threshold_use_master}
-        />
-        <FormField
-          label="Tailor resume at score ≥"
-          type="number"
-          hint="Below this the job is skipped."
-          registration={register('threshold_tailor', num)}
-          error={errors.threshold_tailor}
+          registration={register('digest_min_score', num)}
+          error={errors.digest_min_score}
         />
         <div className="sm:col-span-2">
-          <p className="mb-2 text-sm font-medium">
-            Score weights{' '}
-            <span
-              className={cn('text-xs', weightSum === 100 ? 'text-success' : 'text-destructive')}
-            >
-              (total {weightSum} / 100)
-            </span>
-          </p>
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
-            {WEIGHT_FIELDS.map(([key, label]) => (
-              <FormField
-                key={key}
-                label={label}
-                type="number"
-                registration={register(`score_weights.${key}`, num)}
-                error={errors.score_weights?.[key]}
-              />
-            ))}
-          </div>
-          {errors.score_weights?.root && (
-            <p className="mt-1 text-xs text-destructive">{errors.score_weights.root.message}</p>
-          )}
-          {errors.score_weights?.message && (
-            <p className="mt-1 text-xs text-destructive">{errors.score_weights.message}</p>
-          )}
+          <CheckboxField
+            label="Also email it to me (from my connected Gmail, to myself)"
+            registration={register('digest_email')}
+          />
         </div>
-        {/* Match scores are made only on demand (admin decision, Phase 9) — no auto-analysis. */}
       </Section>
 
       <Section
-        title="Email sending"
-        description="Safety limits for applications sent from your Gmail."
-        usedFrom="Phase 12"
+        title="Job sources"
+        description="Where your jobs and contacts come from, besides job search."
       >
-        <FormField
-          label="Daily send limit"
-          type="number"
-          registration={register('daily_send_cap', num)}
-          error={errors.daily_send_cap}
-        />
-        <FormField
-          label="Seconds between emails"
-          type="number"
-          registration={register('send_interval_seconds', num)}
-          error={errors.send_interval_seconds}
-        />
-        <FormField
-          label="Days before emailing the same person again"
-          type="number"
-          registration={register('recipient_cooldown_days', num)}
-          error={errors.recipient_cooldown_days}
-        />
-        <FormField
-          label="Follow-up after (days, 0 = off)"
-          type="number"
-          registration={register('follow_up_days', num)}
-          error={errors.follow_up_days}
-        />
-        <FormField
-          label="Mark 'no response' after (days)"
-          type="number"
-          registration={register('no_response_days', num)}
-          error={errors.no_response_days}
-        />
         <div className="sm:col-span-2">
           <CheckboxField
             label="LinkedIn hiring posts"
@@ -226,50 +178,114 @@ function SettingsForm({ settings }) {
         </div>
       </Section>
 
-      <Section
-        title="Daily digest"
-        description="Every morning: your best new matches, scored for you (up to 20 new jobs a day), in the app and — when Gmail is connected — by email to yourself."
-      >
-        <div className="sm:col-span-2">
-          <CheckboxField label="Send me a daily digest" registration={register('digest_enabled')} />
-        </div>
-        <div className="flex flex-col gap-1.5">
-          <Label htmlFor="digest-hour">Time (your time zone, from Profile)</Label>
-          <Select id="digest-hour" {...register('digest_hour', num)}>
-            {Array.from({ length: 24 }, (_, h) => (
-              <option key={h} value={h}>
-                {String(h).padStart(2, '0')}:00
-              </option>
-            ))}
-          </Select>
-        </div>
-        <FormField
-          label="Only jobs scoring at least"
-          type="number"
-          registration={register('digest_min_score', num)}
-          error={errors.digest_min_score}
-        />
-        <div className="sm:col-span-2">
-          <CheckboxField
-            label="Also email it to me (from my connected Gmail, to myself)"
-            registration={register('digest_email')}
-          />
-        </div>
-      </Section>
+      <details className="group rounded-lg border bg-card">
+        <summary className="cursor-pointer select-none px-6 py-4 text-sm font-medium">
+          Advanced settings
+          <span className="ml-2 font-normal text-muted-foreground">
+            — scoring weights, sending limits, AI budget
+          </span>
+        </summary>
+        <div className="flex flex-col gap-6 p-4 pt-0">
+          <Section
+            title="Job matching"
+            description="How jobs are scored against your resume."
+            usedFrom="Phase 9"
+          >
+            <FormField
+              label="Use master resume at score ≥"
+              type="number"
+              registration={register('threshold_use_master', num)}
+              error={errors.threshold_use_master}
+            />
+            <FormField
+              label="Tailor resume at score ≥"
+              type="number"
+              hint="Below this the job is skipped."
+              registration={register('threshold_tailor', num)}
+              error={errors.threshold_tailor}
+            />
+            <div className="sm:col-span-2">
+              <p className="mb-2 text-sm font-medium">
+                Score weights{' '}
+                <span
+                  className={cn('text-xs', weightSum === 100 ? 'text-success' : 'text-destructive')}
+                >
+                  (total {weightSum} / 100)
+                </span>
+              </p>
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
+                {WEIGHT_FIELDS.map(([key, label]) => (
+                  <FormField
+                    key={key}
+                    label={label}
+                    type="number"
+                    registration={register(`score_weights.${key}`, num)}
+                    error={errors.score_weights?.[key]}
+                  />
+                ))}
+              </div>
+              {errors.score_weights?.root && (
+                <p className="mt-1 text-xs text-destructive">{errors.score_weights.root.message}</p>
+              )}
+              {errors.score_weights?.message && (
+                <p className="mt-1 text-xs text-destructive">{errors.score_weights.message}</p>
+              )}
+            </div>
+            {/* Match scores are made only on demand (admin decision, Phase 9) — no auto-analysis. */}
+          </Section>
 
-      <Section
-        title="AI usage"
-        description="Monthly spending limit for AI calls."
-        usedFrom="Phase 6"
-      >
-        <FormField
-          label="Monthly AI budget (USD)"
-          type="number"
-          step="0.01"
-          registration={register('monthly_ai_budget_usd', num)}
-          error={errors.monthly_ai_budget_usd}
-        />
-      </Section>
+          <Section
+            title="Email sending"
+            description="Safety limits for applications sent from your Gmail."
+            usedFrom="Phase 12"
+          >
+            <FormField
+              label="Daily send limit"
+              type="number"
+              registration={register('daily_send_cap', num)}
+              error={errors.daily_send_cap}
+            />
+            <FormField
+              label="Seconds between emails"
+              type="number"
+              registration={register('send_interval_seconds', num)}
+              error={errors.send_interval_seconds}
+            />
+            <FormField
+              label="Days before emailing the same person again"
+              type="number"
+              registration={register('recipient_cooldown_days', num)}
+              error={errors.recipient_cooldown_days}
+            />
+            <FormField
+              label="Follow-up after (days, 0 = off)"
+              type="number"
+              registration={register('follow_up_days', num)}
+              error={errors.follow_up_days}
+            />
+            <FormField
+              label="Mark 'no response' after (days)"
+              type="number"
+              registration={register('no_response_days', num)}
+              error={errors.no_response_days}
+            />
+          </Section>
+
+          <Section
+            title="AI usage"
+            description="Monthly spending limit for AI calls."
+            usedFrom="Phase 6"
+          >
+            <FormField
+              label="Monthly AI budget (USD)"
+              type="number"
+              step="0.01"
+              registration={register('monthly_ai_budget_usd', num)}
+              error={errors.monthly_ai_budget_usd}
+            />
+          </Section>
+        </div>
+      </details>
 
       <div className="flex gap-2">
         <Button type="submit" disabled={isSubmitting || !isDirty}>

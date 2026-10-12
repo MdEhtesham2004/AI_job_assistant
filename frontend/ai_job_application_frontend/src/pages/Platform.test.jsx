@@ -95,6 +95,43 @@ describe('Dashboard (home page)', () => {
   })
 })
 
+describe('Getting started (Phase 18)', () => {
+  it('ticks off done steps, points to the next one, and can be hidden', async () => {
+    mockApi({
+      'GET /dashboard': {
+        ...DASHBOARD,
+        getting_started: {
+          resume: true,
+          jobs: true,
+          scored: false,
+          application: false,
+          gmail: false,
+        },
+      },
+    })
+    renderWithProviders(<HomePage />)
+
+    const steps = await screen.findByRole('list', { name: 'Getting started steps' })
+    expect(screen.getByText('2 of 4 steps done — about 10 minutes in total.')).toBeInTheDocument()
+    expect(within(steps).getAllByLabelText('Done')).toHaveLength(2)
+    // The next step is the highlighted call to action.
+    expect(within(steps).getByRole('link', { name: 'Open jobs' })).toHaveAttribute('href', '/jobs')
+
+    await userEvent.click(screen.getByRole('button', { name: 'Hide getting started' }))
+    expect(screen.queryByText('Getting started')).not.toBeInTheDocument()
+    localStorage.removeItem('getting-started-hidden')
+  })
+
+  it('disappears once the required steps are done', async () => {
+    const all = { resume: true, jobs: true, scored: true, application: true, gmail: false }
+    mockApi({ 'GET /dashboard': { ...DASHBOARD, getting_started: all } })
+    renderWithProviders(<HomePage />)
+
+    await screen.findByRole('region', { name: 'Key numbers' })
+    expect(screen.queryByText('Getting started')).not.toBeInTheDocument()
+  })
+})
+
 describe('Admin › Analytics', () => {
   it('shows paid search calls next to cache hits', async () => {
     mockApi({

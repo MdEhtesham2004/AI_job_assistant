@@ -1,64 +1,34 @@
 import {
   Activity,
   BarChart3,
-  Bell,
-  FileUp,
-  GraduationCap,
-  ScrollText,
-  Radar,
-  BellRing,
   Briefcase,
   ClipboardList,
-  Contact,
   FileText,
+  GraduationCap,
   House,
-  ListChecks,
-  Mic,
-  Search,
+  ScrollText,
   Send,
   Settings,
-  UserRound,
   Users,
 } from 'lucide-react'
 
 /**
- * Sidebar sections. Items are added as their phase is implemented (Phase 1 §8).
- * `adminOnly` sections are hidden for normal users; `badge` names a live counter.
+ * Sidebar (Phase 18: grouped from 16 items to a short menu — every page is still reachable
+ * through the section tabs, buttons or the bell).
+ * - `also`: other paths that keep the item highlighted (pages shown as tabs of this item)
+ * - `when`: shown only when the condition holds (see AppLayout)
+ * - `adminOnly` sections are hidden for normal users; `badge` names a live counter.
  */
 export const navigation = [
   {
     items: [
       { to: '/', label: 'Home', icon: House, end: true },
-      { to: '/resumes', label: 'Resumes', icon: FileText },
-      { to: '/tasks', label: 'Tasks', icon: ListChecks },
-    ],
-  },
-  {
-    title: 'Jobs',
-    items: [
-      { to: '/jobs/search', label: 'Find jobs', icon: Search },
-      { to: '/jobs', label: 'Jobs', icon: Briefcase, end: true },
-      { to: '/jobs/scan', label: 'Scan', icon: Radar },
-      { to: '/jobs/saved', label: 'Saved searches', icon: BellRing },
-      { to: '/jobs/import', label: 'Import', icon: FileUp },
+      { to: '/jobs', label: 'Jobs', icon: Briefcase },
       { to: '/applications', label: 'Applications', icon: ClipboardList },
-      { to: '/interviews', label: 'Mock interviews', icon: Mic },
-      { to: '/skills', label: 'Skill gaps', icon: GraduationCap },
-    ],
-  },
-  {
-    title: 'Outreach',
-    items: [
-      { to: '/contacts', label: 'Contacts', icon: Contact },
-      { to: '/outbox', label: 'Outbox', icon: Send },
-    ],
-  },
-  {
-    title: 'Account',
-    items: [
-      { to: '/notifications', label: 'Notifications', icon: Bell },
-      { to: '/profile', label: 'Profile', icon: UserRound },
-      { to: '/settings', label: 'Settings', icon: Settings },
+      { to: '/interviews', label: 'Prepare', icon: GraduationCap, also: ['/skills'] },
+      { to: '/contacts', label: 'Outreach', icon: Send, also: ['/outbox'], when: 'outreach' },
+      { to: '/resumes', label: 'Resume', icon: FileText },
+      { to: '/settings', label: 'Settings', icon: Settings, also: ['/profile'] },
     ],
   },
   {

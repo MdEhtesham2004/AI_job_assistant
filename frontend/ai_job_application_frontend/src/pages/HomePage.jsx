@@ -12,6 +12,7 @@ import {
   useDashboard,
   useUsage,
 } from '@/features/dashboard/api'
+import { GettingStarted } from '@/features/dashboard/GettingStarted'
 import { DigestCard } from '@/features/hunt/components/DigestCard'
 import { formatDate, formatRelative } from '@/lib/format'
 
@@ -61,6 +62,7 @@ function Tile({ label, value, hint, to }) {
 function Dashboard({ data }) {
   return (
     <div className="flex flex-col gap-6">
+      {data.getting_started && <GettingStarted done={data.getting_started} />}
       {data.waiting_for_approval > 0 && (
         <Link
           to="/outbox"

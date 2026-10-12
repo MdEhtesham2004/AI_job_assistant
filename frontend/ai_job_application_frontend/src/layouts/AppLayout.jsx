@@ -1,11 +1,13 @@
 import { BriefcaseBusiness, Menu, Moon, Sun, X } from 'lucide-react'
 import { useState } from 'react'
-import { NavLink, Outlet } from 'react-router'
+import { NavLink, Outlet, useLocation } from 'react-router'
 
 import { useAuth } from '@/auth/useAuth'
 import { Button } from '@/components/ui/button'
+import { useSettings } from '@/features/account/hooks'
 import { useUserCounts } from '@/features/admin/hooks'
 import { NotificationBell } from '@/features/notifications/NotificationBell'
+import { useGmailStatus } from '@/features/outreach/hooks'
 import { cn } from '@/lib/utils'
 import { useTheme } from '@/theme/useTheme'
 
@@ -17,6 +19,15 @@ function SidebarNav({ onNavigate }) {
   const isAdmin = user?.role === 'admin'
   const counts = useUserCounts({ enabled: isAdmin })
   const badges = { pendingUsers: counts.data?.pending ?? 0 }
+  const { pathname } = useLocation()
+  // Phase 18: Outreach (Contacts, Outbox) only once Gmail or LinkedIn posts are in use.
+  const settings = useSettings().data
+  const gmail = useGmailStatus().data
+  const show = {
+    outreach: Boolean(settings?.linkedin_source_enabled || gmail?.connected),
+  }
+  const onAlso = (also = []) =>
+    also.some((path) => pathname === path || pathname.startsWith(`${path}/`))
 
   return (
     <nav className="flex flex-col gap-4 p-3" aria-label="Main">
@@ -29,33 +40,35 @@ function SidebarNav({ onNavigate }) {
                 {section.title}
               </p>
             )}
-            {section.items.map(({ to, label, icon: Icon, end, badge }) => (
-              <NavLink
-                key={to}
-                to={to}
-                end={end}
-                onClick={onNavigate}
-                className={({ isActive }) =>
-                  cn(
-                    'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors',
-                    isActive
-                      ? 'bg-primary/10 text-primary'
-                      : 'text-muted-foreground hover:bg-accent hover:text-foreground',
-                  )
-                }
-              >
-                <Icon className="size-4" aria-hidden="true" />
-                <span className="flex-1">{label}</span>
-                {badge && badges[badge] > 0 && (
-                  <span
-                    className="rounded-full bg-warning/20 px-2 text-xs font-semibold text-warning"
-                    aria-label={`${badges[badge]} pending`}
-                  >
-                    {badges[badge]}
-                  </span>
-                )}
-              </NavLink>
-            ))}
+            {section.items
+              .filter((item) => !item.when || show[item.when])
+              .map(({ to, label, icon: Icon, end, badge, also }) => (
+                <NavLink
+                  key={to}
+                  to={to}
+                  end={end}
+                  onClick={onNavigate}
+                  className={({ isActive }) =>
+                    cn(
+                      'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors',
+                      isActive || onAlso(also)
+                        ? 'bg-primary/10 text-primary'
+                        : 'text-muted-foreground hover:bg-accent hover:text-foreground',
+                    )
+                  }
+                >
+                  <Icon className="size-4" aria-hidden="true" />
+                  <span className="flex-1">{label}</span>
+                  {badge && badges[badge] > 0 && (
+                    <span
+                      className="rounded-full bg-warning/20 px-2 text-xs font-semibold text-warning"
+                      aria-label={`${badges[badge]} pending`}
+                    >
+                      {badges[badge]}
+                    </span>
+                  )}
+                </NavLink>
+              ))}
           </div>
         ))}
     </nav>

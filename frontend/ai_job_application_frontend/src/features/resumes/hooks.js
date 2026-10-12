@@ -39,7 +39,7 @@ export function useUploadResume() {
     onSuccess: ({ version }) => {
       toast.success(`Version ${version.version_no} uploaded — reading your resume…`)
       queryClient.invalidateQueries({ queryKey: queryKeys.resumes.all() })
-      queryClient.invalidateQueries({ queryKey: queryKeys.tasks.all() })
+      queryClient.invalidateQueries({ queryKey: queryKeys.tasks.lists() })
     },
   })
 }

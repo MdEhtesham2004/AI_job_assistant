@@ -20,19 +20,29 @@ function renderLayout(user) {
 }
 
 describe('AppLayout navigation', () => {
-  it('hides the admin section from normal users', () => {
+  it('shows the short menu and hides the admin section from normal users', () => {
     const fetchMock = mockApi({ 'GET /notifications/unread-count': { unread: 0 } })
     renderLayout(makeUser())
 
     const nav = screen.getAllByRole('navigation', { name: 'Main' })[0]
-    expect(nav).toHaveTextContent('Tasks')
-    expect(nav).toHaveTextContent('Resumes')
-    expect(nav).toHaveTextContent('Find jobs')
-    expect(nav).toHaveTextContent('Saved searches')
-    expect(nav).toHaveTextContent('Profile')
-    expect(nav).not.toHaveTextContent('Users')
+    const labels = Array.from(nav.querySelectorAll('a')).map((a) => a.textContent)
+    // Phase 18: grouped menu; Outreach only once Gmail or LinkedIn posts are in use.
+    expect(labels).toEqual(['Home', 'Jobs', 'Applications', 'Prepare', 'Resume', 'Settings'])
     const requested = fetchMock.mock.calls.map(([url]) => url)
     expect(requested.some((url) => url.includes('/admin/'))).toBe(false)
+  })
+
+  it('shows Outreach when Gmail is connected', async () => {
+    mockApi({
+      'GET /notifications/unread-count': { unread: 0 },
+      'GET /integrations/gmail': { configured: true, connected: true },
+    })
+    renderLayout(makeUser())
+
+    expect(await screen.findByRole('link', { name: 'Outreach' })).toHaveAttribute(
+      'href',
+      '/contacts',
+    )
   })
 
   it('shows admins the Users page with the pending count', async () => {

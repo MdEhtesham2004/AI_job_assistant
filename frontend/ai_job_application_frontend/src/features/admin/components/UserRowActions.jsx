@@ -1,8 +1,8 @@
-import { Check, ShieldCheck, ShieldOff, UserMinus, UserPlus, X } from 'lucide-react'
+import { Check, Mail, MailX, ShieldCheck, ShieldOff, UserMinus, UserPlus, X } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 
-import { availableActions } from '../userRules'
+import { availableActions, userStatus } from '../userRules'
 
 const BUTTONS = {
   approve: { label: 'Approve', icon: Check, variant: 'default' },
@@ -11,15 +11,21 @@ const BUTTONS = {
   removeAdmin: { label: 'Remove admin', icon: ShieldOff, variant: 'ghost' },
   deactivate: { label: 'Deactivate', icon: UserMinus, variant: 'ghost' },
   reactivate: { label: 'Reactivate', icon: UserPlus, variant: 'ghost' },
+  // Phase 19: per-user permission for scheduled recruiter-email (LinkedIn) searches.
+  allowEmailSearches: { label: 'Allow scheduled email searches', icon: Mail, variant: 'ghost' },
+  stopEmailSearches: { label: 'Stop scheduled email searches', icon: MailX, variant: 'ghost' },
 }
 
 export function UserRowActions({ user, currentUserId, disabled, onAction }) {
   const actions = availableActions(user, currentUserId)
-  if (actions.length === 0) {
-    return <span className="text-xs text-muted-foreground">This is you</span>
+  if (userStatus(user) === 'approved') {
+    actions.push(user.linkedin_schedule_allowed ? 'stopEmailSearches' : 'allowEmailSearches')
   }
   return (
-    <div className="flex flex-wrap justify-end gap-1">
+    <div className="flex flex-wrap items-center justify-end gap-1">
+      {user.id === currentUserId && (
+        <span className="text-xs text-muted-foreground">This is you</span>
+      )}
       {actions.map((action) => {
         const { label, icon: Icon, variant } = BUTTONS[action]
         return (

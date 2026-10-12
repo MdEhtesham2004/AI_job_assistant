@@ -67,7 +67,8 @@ export default function AdminUsersPage() {
     action.mutate({ action: name, id: user.id, ...extra }, { onSettled: () => setPending(null) })
 
   const onAction = (name, user) => {
-    if (name === 'approve' || name === 'reactivate') run(name, user)
+    const noConfirm = ['approve', 'reactivate', 'allowEmailSearches', 'stopEmailSearches']
+    if (noConfirm.includes(name)) run(name, user)
     else setPending({ action: name, user })
   }
 

@@ -3,12 +3,12 @@ import userEvent from '@testing-library/user-event'
 import { Route, Routes } from 'react-router'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
+import { AddJobDialog } from '@/features/jobs/components/AddJobDialog'
 import { COUNTS, makeJob, makeJobDetail } from '@/test/jobFixtures'
 import { jsonResponse, mockApi, renderWithProviders } from '@/test/utils'
 
 import JobDetailPage from './JobDetailPage'
 import JobsPage from './JobsPage'
-import ScanPage from './ScanPage'
 
 afterEach(() => vi.unstubAllGlobals())
 
@@ -141,31 +141,33 @@ describe('Analysis panel', () => {
   })
 })
 
-describe('ScanPage', () => {
-  it('scores a pasted job description', async () => {
+describe('Add a job (was the Scan page)', () => {
+  it('saves and scores a pasted job, then opens it', async () => {
     const description = 'Responsibilities: build React Native apps. '.repeat(8)
     const fetchMock = mockApi({
       'POST /jobs/scan-text': { job_id: 'j9', task_id: 't9' },
       'GET /tasks/t9': { id: 't9', type: 'job_analyze', status: 'succeeded', progress: 100 },
-      'GET /jobs/j9': makeJobDetail({ id: 'j9', match_score: 79, analysis: ANALYSIS }),
     })
-    renderWithProviders(<ScanPage />)
+    renderWithProviders(
+      <Routes>
+        <Route path="/" element={<AddJobDialog />} />
+        <Route path="/jobs/:jobId" element={<p>Job opened</p>} />
+      </Routes>,
+    )
 
+    await userEvent.click(screen.getByRole('button', { name: 'Add a job' }))
+    expect(screen.getByRole('button', { name: 'Add and score' })).toBeDisabled() // too short
     await userEvent.type(screen.getByLabelText('Job title'), 'Mobile Engineer')
     await userEvent.click(screen.getByLabelText('Job description'))
     await userEvent.paste(description)
-    await userEvent.click(screen.getByRole('button', { name: 'Score this job' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Add and score' }))
 
-    expect(await screen.findByText('Mention the payments app.')).toBeInTheDocument()
+    expect(await screen.findByText('Job opened')).toBeInTheDocument()
     const body = JSON.parse(posted(fetchMock, 'scan-text')[0][1].body)
     expect(body).toEqual({
       title: 'Mobile Engineer',
       company: 'Unknown company',
       description: description.trim(),
     })
-    expect(screen.getByRole('link', { name: 'Open the saved job' })).toHaveAttribute(
-      'href',
-      '/jobs/j9',
-    )
   })
 })

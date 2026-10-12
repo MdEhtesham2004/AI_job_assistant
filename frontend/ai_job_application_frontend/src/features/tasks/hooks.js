@@ -24,14 +24,20 @@ export function useTaskPolling(taskId) {
     queryFn: async () => {
       const task = await tasksApi.get(taskId)
       if (!isActive(task)) {
-        // Finished: refresh lists and the bell (a notification was created).
-        queryClient.invalidateQueries({ queryKey: queryKeys.tasks.all() })
+        // Finished: refresh the task list and the bell (a notification was created).
+        // Not `tasks.all()`: that includes THIS query, and invalidating a query while it
+        // fetches cancels the fetch — the "finished" answer was dropped and the next poll
+        // did the same, so the progress bar spun until a page refresh (found 2026-10-12).
+        queryClient.invalidateQueries({ queryKey: queryKeys.tasks.lists() })
         queryClient.invalidateQueries({ queryKey: queryKeys.notifications.all() })
       }
       return task
     },
     enabled: Boolean(taskId),
     refetchInterval: (query) => (isActive(query.state.data) || !query.state.data ? POLL_MS : false),
+    // Keep following while the tab is in the background (e.g. the user switched tabs
+    // during a 30-second AI task); otherwise nothing catches up on return.
+    refetchIntervalInBackground: true,
   })
 }
 
@@ -42,7 +48,7 @@ export function useStartTask(start, { label }) {
     mutationFn: start,
     onSuccess: () => {
       toast.info(`${label} started — it runs in the background.`)
-      queryClient.invalidateQueries({ queryKey: queryKeys.tasks.all() })
+      queryClient.invalidateQueries({ queryKey: queryKeys.tasks.lists() })
     },
     onError: (error) => toast.error(error.message),
   })
