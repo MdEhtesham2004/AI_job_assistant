@@ -26,6 +26,9 @@ export const savedSearchSchema = z.object({
   ...searchFields,
   schedule: z.string(),
   custom_cron: z.string().trim(),
+  kind: z.enum(['jobs', 'linkedin']),
+  posted_limit: z.enum(['24h', 'week', 'month']),
+  max_posts: z.coerce.number().int().min(5, 'At least 5 posts.').max(200, 'At most 200 posts.'),
 })
 
 /** Form values → API body (empty strings become null). */

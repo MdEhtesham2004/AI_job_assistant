@@ -99,6 +99,7 @@ export const QUALITY_LABELS = {
 /** Schedules offered in the UI; anything else is shown as its cron text. */
 export const SCHEDULE_PRESETS = [
   { cron: '0 8 * * *', label: 'Every day at 08:00' },
+  { cron: '0 9 * * *', label: 'Every day at 09:00' },
   { cron: '0 8,18 * * *', label: 'Twice a day (08:00 and 18:00)' },
   { cron: '0 9 * * 1-5', label: 'Weekdays at 09:00' },
   { cron: '0 9 * * 1', label: 'Every Monday at 09:00' },

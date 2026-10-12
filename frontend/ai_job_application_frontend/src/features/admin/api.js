@@ -18,4 +18,5 @@ export const adminApi = {
   deactivate: (id) => api.post(`/admin/users/${id}/deactivate`),
   reactivate: (id) => api.post(`/admin/users/${id}/reactivate`),
   changeRole: (id, role) => api.patch(`/admin/users/${id}/role`, { role }),
+  setPermissions: (id, permissions) => api.patch(`/admin/users/${id}/permissions`, permissions),
 }

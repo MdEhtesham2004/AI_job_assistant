@@ -62,6 +62,46 @@ describe('SavedSearchesPage', () => {
         remote_only: true,
         country: 'in',
         schedule_cron: '30 7 * * 1-5',
+        kind: 'jobs',
+      }),
+    )
+    expect(screen.queryByLabelText('What to fetch')).not.toBeInTheDocument() // not allowed
+  })
+
+  it('schedules recruiter emails when the admin allows it, and shows an admin pause', async () => {
+    const fetchMock = mockApi({
+      'GET /saved-searches': [
+        makeSaved({
+          id: 's9',
+          name: 'RN emails',
+          kind: 'linkedin',
+          max_posts: 25,
+          paused_reason: 'Recruiter-email searches were turned off by an admin.',
+        }),
+      ],
+      'GET /users/me/settings': { linkedin_schedule_allowed: true },
+      'POST /saved-searches': () => jsonResponse(makeSaved(), { status: 201 }),
+    })
+    renderWithProviders(<SavedSearchesPage />)
+
+    expect(await screen.findByText('Recruiter emails')).toBeInTheDocument()
+    expect(screen.getByText(/turned off by an admin/)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Run now' })).toBeDisabled()
+
+    await userEvent.click(screen.getByRole('button', { name: 'New saved search' }))
+    await userEvent.selectOptions(await screen.findByLabelText('What to fetch'), 'linkedin')
+    expect(screen.queryByLabelText('Location')).not.toBeInTheDocument()
+    await userEvent.type(screen.getByLabelText('Name'), 'RN')
+    await userEvent.type(screen.getByLabelText('Keywords'), 'React Native')
+    await userEvent.click(screen.getByRole('button', { name: 'Create' }))
+
+    await vi.waitFor(() =>
+      expect(bodyOf(fetchMock, 'POST')).toMatchObject({
+        kind: 'linkedin',
+        keywords: 'React Native',
+        schedule_cron: '0 9 * * *',
+        posted_limit: '24h',
+        max_posts: 25,
       }),
     )
   })

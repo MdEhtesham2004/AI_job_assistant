@@ -44,6 +44,14 @@ const ACTIONS = {
     run: ({ id }) => adminApi.changeRole(id, 'user'),
     done: (u) => `${u.full_name} is no longer an admin.`,
   },
+  allowEmailSearches: {
+    run: ({ id }) => adminApi.setPermissions(id, { linkedin_schedule_allowed: true }),
+    done: (u) => `${u.full_name} can now schedule recruiter-email searches.`,
+  },
+  stopEmailSearches: {
+    run: ({ id }) => adminApi.setPermissions(id, { linkedin_schedule_allowed: false }),
+    done: (u) => `Scheduled recruiter-email searches stopped for ${u.full_name}.`,
+  },
 }
 
 /** One mutation for every row action; refreshes the list and the tab counts. */

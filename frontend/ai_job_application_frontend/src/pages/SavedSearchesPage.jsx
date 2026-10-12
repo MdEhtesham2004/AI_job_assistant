@@ -66,11 +66,21 @@ export default function SavedSearchesPage() {
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="font-medium">{saved.name}</span>
-                    <Badge variant={saved.is_active ? 'success' : 'outline'}>
-                      {saved.is_active ? 'Active' : 'Paused'}
+                    <Badge
+                      variant={saved.is_active && !saved.paused_reason ? 'success' : 'outline'}
+                    >
+                      {saved.is_active && !saved.paused_reason ? 'Active' : 'Paused'}
                     </Badge>
+                    {saved.kind === 'linkedin' && <Badge variant="outline">Recruiter emails</Badge>}
                   </div>
-                  <p className="text-sm text-muted-foreground">{describeQuery(saved)}</p>
+                  <p className="text-sm text-muted-foreground">
+                    {saved.kind === 'linkedin'
+                      ? `${saved.keywords} · LinkedIn hiring posts · up to ${saved.max_posts} posts`
+                      : describeQuery(saved)}
+                  </p>
+                  {saved.paused_reason && (
+                    <p className="text-xs text-destructive">{saved.paused_reason}</p>
+                  )}
                   <p className="text-xs text-muted-foreground">
                     {describeSchedule(saved.schedule_cron)}
                     {saved.next_run_at && ` · next ${formatRelative(saved.next_run_at)}`}
@@ -82,7 +92,7 @@ export default function SavedSearchesPage() {
                     variant="outline"
                     size="sm"
                     onClick={() => run.mutate(saved.id)}
-                    disabled={run.isPending}
+                    disabled={run.isPending || Boolean(saved.paused_reason)}
                   >
                     <Zap />
                     Run now

@@ -1,4 +1,4 @@
-import { Download, Gauge, Search } from 'lucide-react'
+import { Download, FileUp, Gauge } from 'lucide-react'
 import { useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router'
 
@@ -9,6 +9,7 @@ import { Dialog } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
 import { COST_PER_SCORE_USD, viewFilters } from '@/features/jobs/api'
+import { AddJobDialog } from '@/features/jobs/components/AddJobDialog'
 import { ScoringBar } from '@/features/jobs/components/ScoringBar'
 import { JobRow } from '@/features/jobs/components/JobRow'
 import {
@@ -132,12 +133,13 @@ export default function JobsPage() {
               {exporter.isPending ? 'Exporting…' : 'Export CSV'}
             </Button>
             <Link
-              to="/jobs/search"
-              className="inline-flex h-9 items-center gap-2 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground hover:bg-primary/90 [&_svg]:size-4"
+              to="/jobs/import"
+              className="inline-flex h-9 items-center gap-2 rounded-md border bg-card px-4 text-sm font-medium hover:bg-accent [&_svg]:size-4"
             >
-              <Search aria-hidden="true" />
-              Find jobs
+              <FileUp aria-hidden="true" />
+              Import CSV
             </Link>
+            <AddJobDialog />
           </>
         }
       />
