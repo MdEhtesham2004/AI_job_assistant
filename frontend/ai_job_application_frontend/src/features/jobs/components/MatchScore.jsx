@@ -18,7 +18,7 @@ export function MatchScoreBadge({ score, decision, stale }) {
   return (
     <span
       className={cn(
-        'inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-semibold',
+        'inline-flex items-center gap-1.5 rounded-sm border px-1.5 py-px text-xs font-semibold',
         stale ? 'border-dashed text-muted-foreground' : TONE[scoreTone(score)],
       )}
       title={stale ? 'Scored with an older resume version' : DECISION_LABELS[decision]}
@@ -30,7 +30,7 @@ export function MatchScoreBadge({ score, decision, stale }) {
 }
 
 /** Score badge, or a small "Get match score" button when the job has none (on demand). */
-export function MatchScoreAction({ job }) {
+export function MatchScoreAction({ job, hideBadge = false }) {
   const analyze = useAnalyzeJob(job.id)
   const scored = job.match_score !== null && job.match_score !== undefined
 
@@ -47,7 +47,9 @@ export function MatchScoreAction({ job }) {
   }
   return (
     <span className="inline-flex items-center gap-1.5">
-      {scored && <MatchScoreBadge score={job.match_score} decision={job.decision} stale />}
+      {scored && !hideBadge && (
+        <MatchScoreBadge score={job.match_score} decision={job.decision} stale />
+      )}
       <Button
         variant="outline"
         size="sm"

@@ -1,4 +1,5 @@
 import { zodResolver } from '@hookform/resolvers/zod'
+import { useEffect } from 'react'
 import { useForm, useWatch } from 'react-hook-form'
 
 import { CheckboxField } from '@/components/common/CheckboxField'
@@ -9,6 +10,7 @@ import { Dialog } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
 import { Select } from '@/components/ui/select'
 import { useSettings } from '@/features/account/hooks'
+import { useUsage } from '@/features/dashboard/api'
 import { applyServerErrors } from '@/lib/forms'
 
 import { EXPERIENCE_OPTIONS, SCHEDULE_PRESETS } from '../api'
@@ -49,18 +51,26 @@ export function SavedSearchDialog({ open, onClose, saved, prefill }) {
   const create = useCreateSavedSearch()
   const update = useUpdateSavedSearch()
   const linkedinAllowed = useSettings().data?.linkedin_schedule_allowed ?? false
+  // Apify bills per post: 5, 10, 15 … up to the admin's cap (Settings › Platform).
+  const cap = useUsage().data?.max_posts_per_fetch ?? 25
+  const postOptions = Array.from({ length: Math.floor(cap / 5) }, (_, i) => (i + 1) * 5)
   const {
     register,
     handleSubmit,
     control,
     setError,
     setValue,
+    getValues,
     formState: { errors, isSubmitting },
   } = useForm({
     resolver: zodResolver(savedSearchSchema),
     // The dialog is mounted fresh each time it opens, so defaults are enough.
     defaultValues: initialValues(saved, prefill),
   })
+  const largest = postOptions.at(-1) ?? 5
+  useEffect(() => {
+    if (Number(getValues('max_posts')) > largest) setValue('max_posts', largest)
+  }, [largest, getValues, setValue])
   const schedule = useWatch({ control, name: 'schedule' })
   const kind = useWatch({ control, name: 'kind' })
   const isLinkedin = kind === LINKEDIN
@@ -131,12 +141,19 @@ export function SavedSearchDialog({ open, onClose, saved, prefill }) {
                 <option value="month">Last month</option>
               </Select>
             </div>
-            <FormField
-              label="Posts per fetch"
-              type="number"
-              registration={register('max_posts')}
-              error={errors.max_posts}
-            />
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="saved-max-posts">Posts per fetch</Label>
+              <Select id="saved-max-posts" {...register('max_posts')}>
+                {postOptions.map((count) => (
+                  <option key={count} value={count}>
+                    {count} posts
+                  </option>
+                ))}
+              </Select>
+              {errors.max_posts && (
+                <p className="text-xs text-destructive">{errors.max_posts.message}</p>
+              )}
+            </div>
           </>
         ) : (
           <>

@@ -66,6 +66,17 @@ describe('route guards', () => {
     expect(screen.getByText('login page')).toBeInTheDocument()
   })
 
+  it('shows the public page to visitors at the domain root (Phase 21)', () => {
+    renderWithProviders(<TestRoutes />, { route: '/', auth: anonymous })
+
+    expect(screen.getByRole('heading', { name: /Find the jobs that fit you/ })).toBeInTheDocument()
+    expect(screen.getAllByRole('link', { name: 'Create your account' })[0]).toHaveAttribute(
+      'href',
+      '/register',
+    )
+    expect(screen.queryByText('home page')).not.toBeInTheDocument()
+  })
+
   it('sends pending accounts to "awaiting approval"', () => {
     renderWithProviders(<TestRoutes />, { route: '/', auth: pending })
 

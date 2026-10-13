@@ -1,4 +1,4 @@
-import { screen } from '@testing-library/react'
+import { screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { Route, Routes } from 'react-router'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -53,7 +53,9 @@ describe('Match scores on the Jobs page', () => {
     })
     renderWithProviders(<JobsPage />, { route: '/jobs?state=saved' })
 
-    expect(await screen.findByText('79% match · Tailor first')).toBeInTheDocument()
+    // Phase 21: the score is its own column (big numeral), the decision sits under the title.
+    const scored = (await screen.findByText('Tailor first')).closest('li')
+    expect(within(scored).getByText('79')).toBeInTheDocument()
     await userEvent.click(screen.getByRole('button', { name: 'Get match score for Flutter Dev' }))
     expect(await screen.findByText('Scoring…')).toBeInTheDocument()
 

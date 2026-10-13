@@ -27,7 +27,15 @@ describe('AppLayout navigation', () => {
     const nav = screen.getAllByRole('navigation', { name: 'Main' })[0]
     const labels = Array.from(nav.querySelectorAll('a')).map((a) => a.textContent)
     // Phase 18: grouped menu; Outreach only once Gmail or LinkedIn posts are in use.
-    expect(labels).toEqual(['Home', 'Jobs', 'Applications', 'Prepare', 'Resume', 'Settings'])
+    expect(labels).toEqual([
+      'Home',
+      'Jobs',
+      'Applications',
+      'Prepare',
+      'Automations',
+      'Resume',
+      'Settings',
+    ])
     const requested = fetchMock.mock.calls.map(([url]) => url)
     expect(requested.some((url) => url.includes('/admin/'))).toBe(false)
   })

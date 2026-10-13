@@ -28,7 +28,7 @@ export function MockInterviewCard({ job }) {
       </CardHeader>
       <CardContent className="space-y-3">
         {usable ? (
-          <MockInterviewButton job={job} variant="default" />
+          <MockInterviewButton job={job} variant="outline" />
         ) : (
           <p className="text-sm text-muted-foreground">Paste the job description first.</p>
         )}

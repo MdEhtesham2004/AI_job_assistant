@@ -38,24 +38,26 @@ export default function HomePage() {
   )
 }
 
+/** One column of the key-numbers ledger (Phase 21: one sheet, not seven boxes). */
 function Tile({ label, value, hint, to }) {
   const body = (
-    <CardContent className="py-4">
-      <p className="text-xs font-medium text-muted-foreground">{label}</p>
-      <p className="mt-1 text-2xl font-semibold tabular-nums">{value}</p>
-      {hint && <p className="mt-0.5 text-xs text-muted-foreground">{hint}</p>}
-    </CardContent>
+    <>
+      <p className="text-[2.25rem] font-bold leading-none tracking-tight tabular-nums">{value}</p>
+      <p className="mt-2 text-sm font-medium">{label}</p>
+      {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
+    </>
   )
-  return (
-    <Card className={to ? 'transition-colors hover:border-primary/50' : undefined}>
-      {to ? (
-        <Link to={to} className="block" aria-label={`${label}: ${value}`}>
-          {body}
-        </Link>
-      ) : (
-        body
-      )}
-    </Card>
+  const cell = 'block px-5 py-5'
+  return to ? (
+    <Link
+      to={to}
+      className={`${cell} transition-colors hover:bg-accent`}
+      aria-label={`${label}: ${value}`}
+    >
+      {body}
+    </Link>
+  ) : (
+    <div className={cell}>{body}</div>
   )
 }
 
@@ -81,7 +83,7 @@ function Dashboard({ data }) {
 
       <section
         aria-label="Key numbers"
-        className="grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-7"
+        className="grid grid-cols-2 overflow-hidden rounded-lg border bg-card sm:grid-cols-4 xl:grid-cols-7 [&>*]:border-b [&>*]:border-r xl:[&>*]:border-b-0 [&>*:last-child]:col-span-2 [&>*:last-child]:border-r-0 sm:[&>*:last-child]:col-span-1"
       >
         <Tile
           label="Jobs found"
@@ -101,7 +103,7 @@ function Dashboard({ data }) {
         <Tile label="Rejected" value={data.rejected} />
       </section>
 
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] [&>*]:min-w-0">
         <div className="flex flex-col gap-6">
           <Pipeline stages={data.stages} />
           <Card>
@@ -112,7 +114,7 @@ function Dashboard({ data }) {
                 or rejection).
               </CardDescription>
             </CardHeader>
-            <CardContent className="grid gap-6 sm:grid-cols-2">
+            <CardContent className="grid gap-6 sm:grid-cols-2 [&>*]:min-w-0 [&>*]:overflow-x-auto">
               <RateTable
                 title="By job source"
                 column="Source"
@@ -203,7 +205,7 @@ function Meter({ label, used, limit, text }) {
     <div>
       <p className="flex justify-between gap-2">
         <span className="text-muted-foreground">{label}</span>
-        <span className="tabular-nums">{text}</span>
+        <span>{text}</span>
       </p>
       {limit > 0 && (
         <div
@@ -233,7 +235,7 @@ function Mini({ icon: Icon, label, value, hint }) {
         <Icon className="size-3.5" aria-hidden="true" />
         {label}
       </p>
-      <p className="text-lg font-semibold tabular-nums">{value}</p>
+      <p className="text-lg font-semibold">{value}</p>
       {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
     </div>
   )

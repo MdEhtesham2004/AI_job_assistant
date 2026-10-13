@@ -43,7 +43,7 @@ export function InterviewPrepCard({ job, highlight = false }) {
         )}
         {usable ? (
           <Button
-            variant={pack ? 'ghost' : 'default'}
+            variant={pack ? 'ghost' : 'outline'}
             onClick={() => make.start()}
             disabled={make.running}
           >

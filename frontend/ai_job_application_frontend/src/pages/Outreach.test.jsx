@@ -8,6 +8,7 @@ import { RepliesCard } from '@/features/outreach/components/RepliesCard'
 import { jsonResponse, mockApi, renderWithProviders } from '@/test/utils'
 
 import ApplicationDetailPage from './ApplicationDetailPage'
+import AutomationPipelinePage from './AutomationPipelinePage'
 import ContactsPage from './ContactsPage'
 import OutboxPage from './OutboxPage'
 
@@ -89,13 +90,12 @@ function makeEmail(overrides = {}) {
 const page = (items) => ({ items, total: items.length, page: 1, page_size: 100 })
 
 const AUTOMATION = {
-  keywords: ['Data Scientist'],
   ready: true,
   not_ready_reason: null,
   saved_ready: 2,
-  fetch_allowed: false,
-  fetch_problem: null,
   max_jobs: 5,
+  scheduled: false,
+  hour: 10,
   last_run: null,
 }
 
@@ -133,6 +133,24 @@ describe('GmailCard', () => {
 })
 
 describe('ContactsPage', () => {
+  it('marks contacts you already emailed', async () => {
+    mockApi({
+      'GET /contacts': page([
+        makeContact({ approval: 'approved', last_emailed_at: new Date().toISOString() }),
+        makeContact({ id: 'c2', email: 'new@acme.com' }),
+      ]),
+      'GET /contacts/counts': { counts: { pending: 1, approved: 1, rejected: 0 }, total: 2 },
+      'GET /do-not-contact': [],
+      'GET /users/me/settings': { linkedin_source_enabled: false },
+    })
+    renderWithProviders(<ContactsPage />)
+
+    const emailed = (await screen.findByText('priya.hr@gmail.com')).closest('li')
+    expect(within(emailed).getByText(/^Emailed /)).toBeInTheDocument()
+    const fresh = screen.getByText('new@acme.com').closest('li')
+    expect(within(fresh).queryByText(/^Emailed /)).not.toBeInTheDocument()
+  })
+
   it('shows the evidence and approves a contact', async () => {
     const fetchMock = mockApi({
       'GET /contacts': page([makeContact()]),
@@ -362,7 +380,6 @@ describe('Phase 13: approval queue, automation and replies', () => {
     expect(await screen.findByText('New contact — not approved yet')).toBeInTheDocument()
     expect(screen.getByText('…share your resume at priya.hr@gmail.com…')).toBeInTheDocument()
     expect(screen.getByText('81% match')).toBeInTheDocument()
-    expect(await screen.findByText('1 ready for approval')).toBeInTheDocument()
     await userEvent.click(screen.getByRole('button', { name: 'Approve contact & send' }))
 
     await vi.waitFor(() =>
@@ -374,46 +391,45 @@ describe('Phase 13: approval queue, automation and replies', () => {
     )
   })
 
-  const runBody = (fetchMock) => {
-    const call = fetchMock.mock.calls.find(([url]) => String(url).endsWith('/automation/run'))
-    return call && JSON.parse(call[1].body)
-  }
-
-  it('automates saved jobs; fetching is locked until the admin allows it', async () => {
+  it('prepares applications on click and shows the daily schedule (Phase 20)', async () => {
     const fetchMock = mockApi({
-      'GET /outbox': page([]),
-      'GET /outbox/summary': { counts: {}, sent_today: 0, daily_cap: 25, interval_seconds: 90 },
-      'GET /automation': AUTOMATION,
+      'GET /automation': { ...AUTOMATION, scheduled: true, hour: 10 },
       'POST /automation/run': { task_id: 't1' },
     })
-    renderWithProviders(<OutboxPage />)
+    renderWithProviders(<AutomationPipelinePage />)
 
-    const fetchButton = await screen.findByRole('button', { name: /Fetch new jobs & automate/ })
-    expect(fetchButton).toBeDisabled()
-    expect(screen.getByText(/locked by your admin/)).toBeInTheDocument()
-    await userEvent.click(screen.getByRole('button', { name: 'Automate saved jobs (2)' }))
+    expect(await screen.findByText(/Runs by itself every day at 10:00/)).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Fetch new jobs/ })).not.toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'Prepare applications (2)' }))
 
-    await vi.waitFor(() => expect(runBody(fetchMock)).toEqual({ mode: 'saved' }))
+    await vi.waitFor(() =>
+      expect(fetchMock.mock.calls.some(([url]) => String(url).endsWith('/automation/run'))).toBe(
+        true,
+      ),
+    )
   })
 
-  it('suggests fetching when no saved job is ready and asks before using credit', async () => {
-    const fetchMock = mockApi({
-      'GET /outbox': page([]),
-      'GET /outbox/summary': { counts: {}, sent_today: 0, daily_cap: 25, interval_seconds: 90 },
-      'GET /automation': { ...AUTOMATION, saved_ready: 0, fetch_allowed: true },
-      'POST /automation/run': { task_id: 't1' },
+  it('does not count jobs scored below the minimum, and says why', async () => {
+    mockApi({
+      'GET /automation': { ...AUTOMATION, saved_ready: 0, below_minimum: 2, min_score: 70 },
     })
-    renderWithProviders(<OutboxPage />)
+    renderWithProviders(<AutomationPipelinePage />)
 
-    expect(await screen.findByRole('button', { name: 'Automate saved jobs (0)' })).toBeDisabled()
-    expect(screen.getByText(/No saved job is ready/)).toBeInTheDocument()
-    await userEvent.click(screen.getByRole('button', { name: /Fetch new jobs & automate/ }))
-    expect(screen.getByRole('dialog', { name: 'Fetch new jobs and automate?' })).toBeInTheDocument()
-    await userEvent.click(screen.getByRole('button', { name: 'Fetch & automate' }))
-
-    await vi.waitFor(() => expect(runBody(fetchMock)).toEqual({ mode: 'fetch' }))
+    expect(await screen.findByRole('button', { name: 'Prepare applications (0)' })).toBeDisabled()
+    expect(
+      screen.getByText(/2 jobs with an approved contact scored below your minimum \(70\)/),
+    ).toBeInTheDocument()
+    expect(screen.queryByText(/No job is ready/)).not.toBeInTheDocument()
   })
 
+  it('explains what makes a job ready when none is', async () => {
+    mockApi({ 'GET /automation': { ...AUTOMATION, saved_ready: 0 } })
+    renderWithProviders(<AutomationPipelinePage />)
+
+    expect(await screen.findByRole('button', { name: 'Prepare applications (0)' })).toBeDisabled()
+    expect(screen.getByText(/No job is ready/)).toBeInTheDocument()
+    expect(screen.getByText('Runs only when you click.')).toBeInTheDocument()
+  })
   it('shows a reply and lets the user confirm an unsure reading', async () => {
     const fetchMock = mockApi({
       'GET /applications/a1/replies': [
@@ -475,39 +491,6 @@ describe('Email application from an approved contact', () => {
     expect(await screen.findByText('Application page')).toBeInTheDocument()
     const post = fetchMock.mock.calls.find(([url]) => String(url).endsWith('/jobs/j1/applications'))
     expect(JSON.parse(post[1].body)).toEqual({ channel: 'email', contact_id: 'c1' })
-  })
-})
-
-describe('Outbox after an automation run', () => {
-  it('shows the new drafts as soon as the run finishes', async () => {
-    let polls = 0
-    const run = (status) => ({
-      ...AUTOMATION,
-      last_run: {
-        task_id: 't1',
-        status,
-        progress: status === 'running' ? 50 : 100,
-        result:
-          status === 'running' ? null : { mode: 'saved', candidates: 3, scored: 3, prepared: 1 },
-        error: null,
-        created_at: '2026-10-03T14:36:00Z',
-        finished_at: status === 'running' ? null : '2026-10-03T14:36:19Z',
-      },
-    })
-    mockApi({
-      'GET /automation': () => {
-        polls += 1 // first answer: running; from the next poll on: finished
-        return jsonResponse(run(polls > 1 ? 'succeeded' : 'running'))
-      },
-      'GET /outbox': () => jsonResponse(page(polls > 1 ? [makeEmail()] : [])),
-      'GET /outbox/summary': { counts: {}, sent_today: 0, daily_cap: 25, interval_seconds: 90 },
-    })
-    renderWithProviders(<OutboxPage />)
-
-    expect(await screen.findByText(/No drafts/)).toBeInTheDocument()
-    expect(await screen.findByLabelText('Subject', {}, { timeout: 8000 })).toHaveValue(
-      'Application for React Native Developer – Asha Verma',
-    )
   })
 })
 

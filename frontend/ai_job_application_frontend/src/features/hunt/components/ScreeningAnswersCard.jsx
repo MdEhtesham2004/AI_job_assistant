@@ -177,7 +177,7 @@ export function ScreeningAnswersCard({ job }) {
                 ))}
               </ul>
             )}
-            <Button onClick={() => make.start(questions)} disabled={make.running}>
+            <Button variant="outline" onClick={() => make.start(questions)} disabled={make.running}>
               {make.running && <LoaderCircle className="animate-spin" />}
               {make.running
                 ? 'Writing answers…'

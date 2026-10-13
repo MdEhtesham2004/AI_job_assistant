@@ -2,6 +2,7 @@ import { Navigate, useLocation } from 'react-router'
 
 import { useAuth } from '@/auth/useAuth'
 import { FullPageSpinner } from '@/components/common/FullPageSpinner'
+import LandingPage from '@/pages/LandingPage'
 import NotFoundPage from '@/pages/NotFoundPage'
 
 function homeFor(user) {
@@ -29,6 +30,8 @@ export function RequireAuth({ children }) {
   const { status } = useAuth()
   const location = useLocation()
   if (status === 'loading') return <FullPageSpinner />
+  // Phase 21: visitors who open the domain root see the public page; signed-in users get Home.
+  if (status === 'anonymous' && location.pathname === '/') return <LandingPage />
   if (status === 'anonymous') return <Navigate to="/login" replace state={{ from: location }} />
   return children
 }

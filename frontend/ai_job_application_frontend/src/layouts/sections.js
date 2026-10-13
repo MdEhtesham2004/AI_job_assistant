@@ -6,7 +6,12 @@ export const SECTIONS = {
   jobs: [
     { to: '/jobs', label: 'My jobs', end: true },
     { to: '/jobs/search', label: 'Find jobs' },
-    { to: '/jobs/saved', label: 'Saved searches' },
+  ],
+  // Phase 20: every automation in one place.
+  automations: [
+    { to: '/automations/searches', label: 'Scheduled searches' },
+    { to: '/automations/pipeline', label: 'Apply pipeline' },
+    { to: '/automations/digest', label: 'Daily digest' },
   ],
   prepare: [
     { to: '/interviews', label: 'Mock interviews', end: true },

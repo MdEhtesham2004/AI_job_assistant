@@ -44,7 +44,7 @@ export default function NotificationsPage() {
         }
       />
       <div className="mb-4 flex flex-wrap items-center gap-2">
-        <div className="flex rounded-md border" role="tablist" aria-label="Read state">
+        <div className="flex flex-wrap gap-x-5 border-b" role="tablist" aria-label="Read state">
           {[
             [false, 'All'],
             [true, 'Unread'],
@@ -59,8 +59,10 @@ export default function NotificationsPage() {
                 setPage(1)
               }}
               className={cn(
-                'px-3 py-1.5 text-sm',
-                unreadOnly === value ? 'bg-primary text-primary-foreground' : 'hover:bg-accent',
+                '-mb-px border-b-2 pb-2 pt-1 text-sm font-semibold',
+                unreadOnly === value
+                  ? 'border-primary text-foreground'
+                  : 'border-transparent text-muted-foreground hover:text-foreground',
               )}
             >
               {label}

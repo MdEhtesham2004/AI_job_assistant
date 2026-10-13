@@ -237,7 +237,7 @@ export function useRunAutomation() {
     mutationFn: automationApi.run,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.automation.status() })
-      toast.info('Automation started — it takes a few minutes.')
+      toast.info('Preparing applications — it takes a few minutes.')
     },
     onError: (error) => toast.error(error.message),
   })
@@ -255,17 +255,10 @@ export function useUpdatePlatform() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: automationApi.updatePlatform,
-    onSuccess: (saved, changes) => {
+    onSuccess: (saved) => {
       queryClient.setQueryData(queryKeys.automation.platform(), saved)
-      queryClient.invalidateQueries({ queryKey: queryKeys.automation.status() })
       queryClient.invalidateQueries({ queryKey: queryKeys.usage() })
-      if (!('automation_fetch_enabled' in changes)) toast.success('Usage limits saved.')
-      else
-        toast.success(
-          saved.automation_fetch_enabled
-            ? '"Fetch new jobs & automate" is now available.'
-            : '"Fetch new jobs & automate" is locked.',
-        )
+      toast.success('Usage limits saved.')
     },
     onError: (error) => toast.error(error.message),
   })

@@ -6,6 +6,8 @@ import { SectionLayout } from '@/layouts/SectionLayout'
 import AdminUsersPage from '@/pages/admin/AdminUsersPage'
 import AnalyticsPage from '@/pages/admin/AnalyticsPage'
 import AuditLogPage from '@/pages/admin/AuditLogPage'
+import AutomationPipelinePage from '@/pages/AutomationPipelinePage'
+import DigestPage from '@/pages/DigestPage'
 import ImportPage from '@/pages/ImportPage'
 import InterviewPage from '@/pages/InterviewPage'
 import InterviewPrepPage from '@/pages/InterviewPrepPage'
@@ -81,9 +83,19 @@ export const routes = [
             children: [
               { path: 'jobs', element: <JobsPage /> },
               { path: 'jobs/search', element: <JobSearchPage /> },
-              { path: 'jobs/saved', element: <SavedSearchesPage /> },
             ],
           },
+          {
+            element: <SectionLayout section="automations" />,
+            children: [
+              { path: 'automations/searches', element: <SavedSearchesPage /> },
+              { path: 'automations/pipeline', element: <AutomationPipelinePage /> },
+              { path: 'automations/digest', element: <DigestPage /> },
+            ],
+          },
+          // Phase 20: saved searches moved to Automations (old links keep working).
+          { path: 'automations', element: <Navigate to="/automations/searches" replace /> },
+          { path: 'jobs/saved', element: <Navigate to="/automations/searches" replace /> },
           {
             element: <SectionLayout section="prepare" />,
             children: [

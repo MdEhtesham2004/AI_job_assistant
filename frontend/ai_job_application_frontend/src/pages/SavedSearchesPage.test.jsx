@@ -80,6 +80,7 @@ describe('SavedSearchesPage', () => {
         }),
       ],
       'GET /users/me/settings': { linkedin_schedule_allowed: true },
+      'GET /usage': { max_posts_per_fetch: 15 }, // admin cap
       'POST /saved-searches': () => jsonResponse(makeSaved(), { status: 201 }),
     })
     renderWithProviders(<SavedSearchesPage />)
@@ -91,6 +92,11 @@ describe('SavedSearchesPage', () => {
     await userEvent.click(screen.getByRole('button', { name: 'New saved search' }))
     await userEvent.selectOptions(await screen.findByLabelText('What to fetch'), 'linkedin')
     expect(screen.queryByLabelText('Location')).not.toBeInTheDocument()
+    const posts = screen.getByLabelText('Posts per fetch')
+    await vi.waitFor(() =>
+      expect([...posts.options].map((o) => o.value)).toEqual(['5', '10', '15']),
+    )
+    await userEvent.selectOptions(posts, '10')
     await userEvent.type(screen.getByLabelText('Name'), 'RN')
     await userEvent.type(screen.getByLabelText('Keywords'), 'React Native')
     await userEvent.click(screen.getByRole('button', { name: 'Create' }))
@@ -101,7 +107,7 @@ describe('SavedSearchesPage', () => {
         keywords: 'React Native',
         schedule_cron: '0 9 * * *',
         posted_limit: '24h',
-        max_posts: 25,
+        max_posts: 10,
       }),
     )
   })
