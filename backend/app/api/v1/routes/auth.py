@@ -33,7 +33,7 @@ def _session_response(response: Response, session: Session, settings: Settings) 
         path=_cookie_path(settings),
         httponly=True,
         secure=settings.refresh_cookie_secure,
-        samesite="strict",
+        samesite=settings.cookie_samesite,
     )
     return SessionResponse(
         access_token=session.access_token,
@@ -119,7 +119,7 @@ async def logout(
         path=_cookie_path(settings),
         httponly=True,
         secure=settings.refresh_cookie_secure,
-        samesite="strict",
+        samesite=settings.cookie_samesite,
     )
     return response
 
