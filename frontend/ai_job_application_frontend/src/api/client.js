@@ -3,6 +3,9 @@ import { tokenStore } from '@/auth/tokenStore'
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '/api/v1'
 const REFRESH_PATH = '/auth/refresh'
 const RACE_RETRY_DELAY_MS = 300
+// A free ngrok tunnel answers API calls with its "you are about to visit" HTML page
+// unless this header is sent.
+const TUNNEL_HEADERS = API_BASE_URL.includes('ngrok') ? { 'ngrok-skip-browser-warning': '1' } : {}
 
 /** Normalized error for every failed API call (see Phase 1 §3.4 error format). */
 export class ApiError extends Error {
@@ -19,7 +22,7 @@ export class ApiError extends Error {
 async function send(path, { method = 'GET', body, headers = {}, signal, raw = false } = {}) {
   const init = {
     method,
-    headers: { Accept: 'application/json', ...headers },
+    headers: { Accept: 'application/json', ...TUNNEL_HEADERS, ...headers },
     credentials: 'include',
     signal,
   }
