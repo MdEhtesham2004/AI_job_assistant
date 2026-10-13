@@ -55,5 +55,11 @@ celery_app.conf.update(
             "schedule": 900.0,
             "options": {"queue": "default", "expires": 880},
         },
+        # Phase 20: the daily apply pipeline (prepare applications) at the user's hour.
+        "automations-due": {
+            "task": "tasks.dispatch_automations",
+            "schedule": 900.0,
+            "options": {"queue": "default", "expires": 880},
+        },
     },
 )

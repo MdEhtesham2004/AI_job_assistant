@@ -115,6 +115,7 @@ class SettingsRead(BaseModel):
     automation_posted_limit: str
     automation_tailor: bool
     automation_cover_letter: bool
+    automation_hour: int = 10
     monthly_ai_budget_usd: Decimal
     digest_enabled: bool
     digest_hour: int
@@ -148,6 +149,7 @@ class SettingsUpdate(BaseModel):
     automation_posted_limit: Literal["24h", "week", "month"] | None = None
     automation_tailor: bool | None = None
     automation_cover_letter: bool | None = None
+    automation_hour: Annotated[int, Field(ge=0, le=23)] | None = None
     monthly_ai_budget_usd: Annotated[Decimal, Field(ge=0, le=1000, decimal_places=2)] | None = None
     digest_enabled: bool | None = None
     digest_hour: Annotated[int, Field(ge=0, le=23)] | None = None

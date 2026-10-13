@@ -68,6 +68,26 @@ def dispatch_preps() -> int:
     return asyncio.run(_dispatch_preps(get_settings()))
 
 
+async def _dispatch_automations(settings: Settings) -> int:
+    from app.services.automation import dispatch_automations
+    from app.workers.dispatch import CeleryDispatcher
+
+    engine = create_engine(settings)
+    try:
+        async with create_session_factory(engine)() as session:
+            return await dispatch_automations(
+                session, settings, CeleryDispatcher(), datetime.now(UTC)
+            )
+    finally:
+        await engine.dispose()
+
+
+@celery_app.task(name="tasks.dispatch_automations")
+def dispatch_automations() -> int:
+    """Celery Beat, every 15 minutes: the daily apply pipeline for users whose hour has come."""
+    return asyncio.run(_dispatch_automations(get_settings()))
+
+
 @celery_app.task(name="tasks.dispatch_digests")
 def dispatch_digests() -> int:
     """Celery Beat, every 15 minutes: start today's digest for users whose hour has come."""

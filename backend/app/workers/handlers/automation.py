@@ -1,10 +1,9 @@
-"""Phase 13 task: one automation run for one user (saved jobs, or fetch first) → approval queue."""
+"""Phase 13/20 task: one apply-pipeline run for one user → approval queue (Outbox)."""
 
 from typing import Any
 
 from app.core.errors import AppError
 from app.services.automation import Tools, run_pipeline
-from app.services.usage import Meter, MeteredPostSource
 from app.workers.runner import TaskContext, handler
 
 
@@ -13,7 +12,7 @@ class AutomationTaskError(AppError):
     code = "AUTOMATION_FAILED"
 
 
-@handler("automation_run", "Automation run", link="/outbox")
+@handler("automation_run", "Apply pipeline", link="/outbox")
 async def automation_run(ctx: TaskContext) -> dict[str, Any]:
     if ctx.user_id is None:
         raise AutomationTaskError("Automation runs need an owner.")
@@ -26,15 +25,9 @@ async def automation_run(ctx: TaskContext) -> dict[str, Any]:
             ai=services.ai,
             gotenberg=services.gotenberg,
             storage=services.storage,
-            posts=MeteredPostSource(
-                Meter(ctx.session, services.settings, services.redis, ctx.user_id),
-                services.posts,
-            ),
-            domains=services.domains,
         ),
         ctx.user_id,
         ctx.progress,
-        mode="fetch" if ctx.task.payload.get("mode") == "fetch" else "saved",
     )
     ctx.notify_on_success = False  # run_pipeline sends the summary notification
     return result.as_dict()

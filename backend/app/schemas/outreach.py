@@ -58,6 +58,7 @@ class ContactRead(BaseModel):
     blocked: bool
     job: ContactJob | None
     created_at: datetime
+    last_emailed_at: datetime | None = None  # last email you sent to this address
 
 
 class ContactCreate(BaseModel):
@@ -212,22 +213,18 @@ class AutomationRun(BaseModel):
 
 
 class AutomationStatus(BaseModel):
-    keywords: list[str]
     ready: bool  # resume parsed + Gmail connected
     not_ready_reason: str | None
     saved_ready: int  # saved jobs with an approved contact and no application
-    fetch_allowed: bool  # admin switch (Settings › Platform)
-    fetch_problem: str | None  # e.g. no keywords
+    below_minimum: int = 0  # … of those, already scored below the user's minimum
+    min_score: int = 0
     max_jobs: int
+    scheduled: bool  # Phase 20: runs daily by itself
+    hour: int  # … at this local hour
     last_run: AutomationRun | None
 
 
-class AutomationRunRequest(BaseModel):
-    mode: Literal["saved", "fetch"] = "saved"
-
-
 class PlatformSettings(BaseModel):
-    automation_fetch_enabled: bool
     # Cost control (Phase 14): paid calls per user; 0 = unlimited; cache hits never count.
     jsearch_requests_per_month: int
     apify_posts_per_month: int  # Apify bills per post returned
@@ -242,7 +239,6 @@ class PlatformSettings(BaseModel):
 
 
 class PlatformUpdate(BaseModel):
-    automation_fetch_enabled: bool | None = None
     jsearch_requests_per_month: int | None = Field(default=None, ge=0, le=100_000)
     apify_posts_per_month: int | None = Field(default=None, ge=0, le=1_000_000)
     apify_runs_per_day: int | None = Field(default=None, ge=0, le=1_000)
