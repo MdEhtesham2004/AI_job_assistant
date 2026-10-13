@@ -465,6 +465,48 @@ def test_manual_contacts_verification_and_do_not_contact(
 
 
 @respx.mock
+def test_draft_attaches_the_jobs_cover_letter_when_none_was_chosen(
+    app: FastAPI,
+    client: TestClient,
+    migrated_database: str,
+    gmail_settings: Settings,
+    tmp_path: Path,
+) -> None:
+    """Regression (2026-10-13): a generated cover letter was never chosen on the
+    application, so emails went out with the resume only."""
+    user_id, user = _setup(app, client, migrated_database, gmail_settings, tmp_path)
+    _connect_gmail(client, user)
+    application, _ = _email_application(
+        app, client, migrated_database, gmail_settings, tmp_path, user, user_id
+    )
+    db(
+        migrated_database,
+        "INSERT INTO cover_letters (user_id, job_id, resume_version_id, content_md, file_key,"
+        " model, prompt_version) SELECT :u, job_id, resume_version_id, 'Dear team', 'cl.pdf',"
+        " 'm', 'v1' FROM applications WHERE id = :a",
+        u=user_id,
+        a=application["id"],
+    )
+    respx.post(AI_URL).side_effect = [
+        chat_response(
+            {
+                "subject": "Application for React Native Developer 1 – Asha Verma",
+                "paragraphs": EMAIL_PARAGRAPHS,
+            }
+        ),
+    ]
+
+    draft = _draft(app, client, gmail_settings, tmp_path, user, application["id"])
+    detail = client.get(f"{API}/applications/{application['id']}", headers=user).json()
+
+    assert sorted(a["file_name"] for a in draft["attachments"]) == [
+        "Asha Verma - Cover Letter.pdf",
+        "Asha Verma - Resume.pdf",
+    ]
+    assert detail["cover_letter"] is not None  # now linked to the application
+
+
+@respx.mock
 def test_draft_approve_send_once_and_mark_applied(
     app: FastAPI,
     client: TestClient,
