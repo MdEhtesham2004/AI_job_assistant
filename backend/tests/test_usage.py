@@ -182,7 +182,6 @@ def test_admin_sets_quotas_and_sees_provider_usage(
     )
     assert changed.status_code == 200, changed.text
     assert changed.json() == {
-        "automation_fetch_enabled": False,
         "jsearch_requests_per_month": 5,
         "apify_posts_per_month": 300,
         "apify_runs_per_day": 0,

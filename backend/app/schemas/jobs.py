@@ -203,7 +203,7 @@ class SavedSearchBase(BaseModel):
     # Phase 19: "linkedin" = recruiter emails from LinkedIn hiring posts (admin-allowed users).
     kind: Literal["jobs", "linkedin"] = "jobs"
     posted_limit: Literal["24h", "week", "month"] = "24h"
-    max_posts: int = Field(default=25, ge=5, le=200)
+    max_posts: int = Field(default=25, ge=5, le=200, multiple_of=5)  # Apify bills per post
 
     _clean_text = field_validator("name", "keywords", "location")(_clean)
 
@@ -222,7 +222,7 @@ class SavedSearchUpdate(BaseModel):
     schedule_cron: str | None = Field(default=None, max_length=100)
     is_active: bool | None = None
     posted_limit: Literal["24h", "week", "month"] | None = None
-    max_posts: int | None = Field(default=None, ge=5, le=200)
+    max_posts: int | None = Field(default=None, ge=5, le=200, multiple_of=5)
 
 
 class SavedSearchRead(BaseModel):

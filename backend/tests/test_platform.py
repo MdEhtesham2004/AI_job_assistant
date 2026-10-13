@@ -139,7 +139,7 @@ def test_admin_audit_analytics_and_errors_are_admin_only(
 ) -> None:
     user_id, user = _setup(app, client, migrated_database)
     _, admin = _setup(app, client, migrated_database, "admin@example.com", role="admin")
-    client.patch(f"{API}/admin/platform", json={"automation_fetch_enabled": True}, headers=admin)
+    client.patch(f"{API}/admin/platform", json={"apify_runs_per_day": 2}, headers=admin)
     db(
         migrated_database,
         "INSERT INTO tasks (user_id, type, status, error)"
@@ -158,7 +158,7 @@ def test_admin_audit_analytics_and_errors_are_admin_only(
     analytics = client.get(f"{API}/admin/analytics", headers=admin).json()
     errors = client.get(f"{API}/admin/errors", headers=admin).json()
 
-    assert [e["action"] for e in audit["items"]] == ["platform.automation_fetch"]
+    assert [e["action"] for e in audit["items"]] == ["platform.quotas"]
     assert audit["items"][0]["user_email"] == "admin@example.com"
     assert analytics["users_by_status"]["approved"] == 2
     assert analytics["ai_cost_by_feature"] == [

@@ -20,10 +20,12 @@ from app.db.session import create_engine, create_session_factory
 from app.domain.outreach import asks_not_to_be_contacted, is_bounce, reply_subject
 from app.integrations.ai import AiClient
 from app.integrations.gmail import parse_message
+from app.services.automation import dispatch_automations
 from app.services.replies import PollResult, ReplyTracker
+from app.services.tasks import RecordingDispatcher
 from app.workers.runner import Outcome
 from tests.fakes import FakeJobSource, chat_response, make_job
-from tests.helpers import db, make_user
+from tests.helpers import db
 from tests.test_analysis import JD, MATCH
 from tests.test_jobs import _search_and_run
 from tests.test_outreach import (
@@ -33,7 +35,6 @@ from tests.test_outreach import (
     GMAIL,
     HIRING,
     SENT_URL,
-    FakeDomains,
     FakePosts,
     _connect_gmail,
     _draft,
@@ -419,7 +420,7 @@ def test_automate_saved_jobs_uses_jobs_with_an_approved_contact(
         app, client, gmail_settings, tmp_path, user, FakeJobSource([make_job(1, description=JD)])
     )
     job_id = run["jobs"][0]["id"]
-    nothing = client.post(f"{API}/automation/run", json={"mode": "saved"}, headers=user)
+    nothing = client.post(f"{API}/automation/run", headers=user)
     before = client.get(f"{API}/automation", headers=user).json()
     client.post(
         f"{API}/contacts",
@@ -432,131 +433,109 @@ def test_automate_saved_jobs_uses_jobs_with_an_approved_contact(
         chat_response({"subject": "Application", "paragraphs": EMAIL_PARAGRAPHS}),
     ]
 
-    task_id = client.post(f"{API}/automation/run", json={"mode": "saved"}, headers=user).json()[
-        "task_id"
-    ]
+    task_id = client.post(f"{API}/automation/run", headers=user).json()["task_id"]
     posts = FakePosts([_post(1, HIRING)])
     assert _work(app, gmail_settings, task_id, tmp_path, post_source=posts) is Outcome.SUCCEEDED
     after = client.get(f"{API}/automation", headers=user).json()
     (queued,) = client.get(f"{API}/outbox?status=draft", headers=user).json()["items"]
-    again = client.post(f"{API}/automation/run", json={"mode": "saved"}, headers=user)
+    again = client.post(f"{API}/automation/run", headers=user)
 
     assert nothing.json()["error"]["code"] == "NOTHING_TO_AUTOMATE"
     assert (before["saved_ready"], ready["saved_ready"], after["saved_ready"]) == (0, 1, 0)
-    assert before["fetch_allowed"] is False
     result = after["last_run"]["result"]
-    assert (result["mode"], result["posts"], result["scored"], result["prepared"]) == (
-        "saved",
-        0,
-        1,
-        1,
-    )
-    assert posts.queries == []  # saved mode never calls Apify
+    assert (result["scored"], result["prepared"]) == (1, 1)
+    assert posts.queries == []  # the pipeline never calls Apify
     assert queued["contact"]["approval"] == "approved"
     assert queued["application"]["job_title"] == "React Native Developer 1"
     assert again.json()["error"]["code"] == "NOTHING_TO_AUTOMATE"  # it has an application now
 
 
 @respx.mock
-def test_fetch_and_automate_is_locked_until_an_admin_enables_it(
+def test_jobs_scored_below_the_minimum_are_not_counted_as_ready(
     app: FastAPI,
     client: TestClient,
     migrated_database: str,
     gmail_settings: Settings,
     tmp_path: Path,
 ) -> None:
+    """Regression (2026-10-13): the button said "(2)" while every run prepared 0, because
+    both jobs had already scored below the minimum."""
     user_id, user = _setup(app, client, migrated_database, gmail_settings, tmp_path)
-    _, admin = make_user(client, migrated_database, "admin@example.com", role="admin")
     _connect_gmail(client, user)
-    client.patch(
-        f"{API}/users/me/settings",
-        json={
-            "linkedin_source_enabled": True,
-            "automation_keywords": ["React Native", " react native "],
-            "automation_min_score": 50,
-            "automation_tailor": False,
-            "automation_cover_letter": False,
-        },
+    settings_url = f"{API}/users/me/settings"
+    client.patch(settings_url, json={"automation_min_score": 90}, headers=user)  # MATCH = 79
+    run = _search_and_run(
+        app, client, gmail_settings, tmp_path, user, FakeJobSource([make_job(1, description=JD)])
+    )
+    client.post(
+        f"{API}/contacts",
+        json={"email": "priya1@acme.com", "name": "Priya", "job_id": run["jobs"][0]["id"]},
         headers=user,
     )
-    locked = client.post(f"{API}/automation/run", json={"mode": "fetch"}, headers=user)
-    not_admin = client.patch(
-        f"{API}/admin/platform", json={"automation_fetch_enabled": True}, headers=user
-    )
-    enabled = client.patch(
-        f"{API}/admin/platform", json={"automation_fetch_enabled": True}, headers=admin
-    ).json()
-    respx.post(AI_URL).side_effect = [
-        chat_response(
-            {
-                "is_hiring": True,
-                "job_title": "React Native Developer",
-                "company": "ABC Technologies",
-                "location": "Pune",
-                "contact_name": "Priya",
-            }
-        ),
-        chat_response(MATCH),
-        chat_response(
-            {"subject": "Application – React Native Developer", "paragraphs": ABC_PARAGRAPHS}
-        ),
-    ]
+    respx.post(AI_URL).side_effect = [chat_response(MATCH)]
+    task_id = client.post(f"{API}/automation/run", headers=user).json()["task_id"]
+    assert _work(app, gmail_settings, task_id, tmp_path) is Outcome.SUCCEEDED
 
-    task_id = client.post(f"{API}/automation/run", json={"mode": "fetch"}, headers=user).json()[
-        "task_id"
-    ]
-    outcome = _work(
-        app,
-        gmail_settings,
-        task_id,
-        tmp_path,
-        post_source=FakePosts([_post(1, HIRING)]),
-        domain_checker=FakeDomains(),
-    )
-    status = client.get(f"{API}/automation", headers=user).json()
-    (queued,) = client.get(f"{API}/outbox?status=draft", headers=user).json()["items"]
-    approved = client.post(
-        f"{API}/emails/{queued['id']}/approve?approve_contact=true", headers=user
-    ).json()
+    after = client.get(f"{API}/automation", headers=user).json()
+    again = client.post(f"{API}/automation/run", headers=user)
+    client.patch(settings_url, json={"automation_min_score": 70}, headers=user)
+    lowered = client.get(f"{API}/automation", headers=user).json()
 
-    assert locked.status_code == 403 and locked.json()["error"]["code"] == "FETCH_LOCKED"
-    assert not_admin.status_code == 403
-    assert enabled["automation_fetch_enabled"] is True and status["fetch_allowed"] is True
-    assert outcome is Outcome.SUCCEEDED
-    assert status["keywords"] == ["React Native"]  # duplicates removed
-    run = status["last_run"]["result"]
-    assert (run["mode"], run["posts"], run["candidates"], run["prepared"]) == ("fetch", 1, 1, 1)
-    assert queued["contact"]["approval"] == "pending"  # found on LinkedIn, not yet approved
-    assert queued["contact"]["source_excerpt"] and queued["application"]["match_score"] is not None
-    assert approved["status"] == "queued" and approved["contact"]["approval"] == "approved"
-    (action,) = db(
-        migrated_database, "SELECT action FROM audit_logs WHERE action LIKE 'platform%'"
-    )[0]
-    assert action == "platform.automation_fetch"
+    assert after["last_run"]["result"]["below_minimum"] == 1
+    assert (after["saved_ready"], after["below_minimum"], after["min_score"]) == (0, 1, 90)
+    assert again.json()["error"]["code"] == "NOTHING_TO_AUTOMATE"
+    assert (lowered["saved_ready"], lowered["below_minimum"]) == (1, 0)  # counts again
 
 
 @respx.mock
-def test_empty_keyword_search_is_reported(
+def test_apply_pipeline_runs_daily_at_the_users_hour(
     app: FastAPI,
     client: TestClient,
     migrated_database: str,
     gmail_settings: Settings,
     tmp_path: Path,
 ) -> None:
+    """Phase 20: switched on → once a day at the user's local hour, only when a job is ready."""
     user_id, user = _setup(app, client, migrated_database, gmail_settings, tmp_path)
-    _, admin = make_user(client, migrated_database, "admin@example.com", role="admin")
     _connect_gmail(client, user)
-    client.patch(f"{API}/admin/platform", json={"automation_fetch_enabled": True}, headers=admin)
+    client.put(
+        f"{API}/users/me/profile", json={"links": {}, "timezone": "Asia/Kolkata"}, headers=user
+    )
     client.patch(
         f"{API}/users/me/settings",
-        json={"linkedin_source_enabled": True, "automation_keywords": ["Associate Data Scientist"]},
+        json={"automation_enabled": True, "automation_hour": 10},
         headers=user,
     )
 
-    task_id = client.post(f"{API}/automation/run", json={"mode": "fetch"}, headers=user).json()[
-        "task_id"
-    ]
-    _work(app, gmail_settings, task_id, tmp_path, post_source=FakePosts([]))
-    result = client.get(f"{API}/automation", headers=user).json()["last_run"]["result"]
+    def tick(now: datetime) -> list[str]:
+        async def go() -> list[str]:
+            dispatcher = RecordingDispatcher()
+            engine = create_engine(gmail_settings)
+            async with create_session_factory(engine)() as session:
+                await dispatch_automations(session, gmail_settings, dispatcher, now)
+            await engine.dispose()
+            return [kind for _, kind in dispatcher.sent]
 
-    assert result["posts"] == 0 and result["empty_keywords"] == ["Associate Data Scientist"]
+        return asyncio.run(go())
+
+    # 10:00 IST on 2026-10-01 is 04:30 UTC.
+    assert tick(datetime(2026, 10, 1, 4, 35, tzinfo=UTC)) == []  # nothing ready: no run
+    run = _search_and_run(
+        app, client, gmail_settings, tmp_path, user, FakeJobSource([make_job(1, description=JD)])
+    )
+    client.post(
+        f"{API}/contacts",
+        json={"email": "priya1@acme.com", "name": "Priya", "job_id": run["jobs"][0]["id"]},
+        headers=user,
+    )
+    assert tick(datetime(2026, 10, 1, 4, 25, tzinfo=UTC)) == []  # before the hour
+    assert tick(datetime(2026, 10, 1, 4, 35, tzinfo=UTC)) == ["automation_run"]
+    db(
+        migrated_database,
+        "UPDATE user_settings SET automation_last_run_at = :t WHERE user_id = :u",
+        t=datetime(2026, 10, 1, 5, 0, tzinfo=UTC),
+        u=user_id,
+    )
+    db(migrated_database, "UPDATE tasks SET status = 'succeeded'")
+    assert tick(datetime(2026, 10, 1, 9, 0, tzinfo=UTC)) == []  # once a day
+    assert tick(datetime(2026, 10, 2, 4, 35, tzinfo=UTC)) == ["automation_run"]  # next day

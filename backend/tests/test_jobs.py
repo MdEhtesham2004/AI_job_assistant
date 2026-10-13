@@ -470,6 +470,8 @@ def test_recruiter_email_searches_only_for_users_the_admin_allows(
     )
     assert allow.json()["linkedin_schedule_allowed"] is True
     assert client.get("/api/v1/users/me/settings", headers=user).json()["linkedin_schedule_allowed"]
+    odd = client.post(SAVED, json={**body, "max_posts": 12}, headers=user)
+    assert odd.status_code == 422  # posts per fetch: multiples of 5 only
     saved = client.post(SAVED, json=body, headers=user).json()
     assert (saved["kind"], saved["schedule_cron"], saved["posted_limit"]) == (
         "linkedin",

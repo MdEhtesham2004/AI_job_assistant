@@ -196,6 +196,10 @@ class UserSettings(TimestampMixin, Base):
         Boolean, nullable=False, default=True, server_default=text("true")
     )
     automation_last_run_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # Phase 20: with automation_enabled, the apply pipeline runs daily at this local hour.
+    automation_hour: Mapped[int] = mapped_column(
+        SmallInteger, nullable=False, default=10, server_default=text("10")
+    )
     llm_models: Mapped[dict[str, str]] = mapped_column(
         JSONB, nullable=False, default=dict, server_default=text("'{}'::jsonb")
     )
@@ -238,4 +242,5 @@ class UserSettings(TimestampMixin, Base):
             "digest_hour BETWEEN 0 AND 23 AND digest_min_score BETWEEN 0 AND 100",
             name="digest_range",
         ),
+        CheckConstraint("automation_hour BETWEEN 0 AND 23", name="automation_hour_range"),
     )

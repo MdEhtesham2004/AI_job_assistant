@@ -16,7 +16,6 @@ from app.repositories.outreach import EmailRepository
 from app.repositories.profiles import UserSettingsRepository
 from app.schemas.outreach import (
     AutomationRun,
-    AutomationRunRequest,
     AutomationStatus,
     PlatformSettings,
     PlatformUpdate,
@@ -30,11 +29,9 @@ from app.schemas.tasks import TaskCreated
 from app.services.ai import month_start
 from app.services.automation import (
     app_settings,
-    fetch_allowed,
-    fetch_problem,
+    job_readiness,
     last_run,
     not_ready_reason,
-    saved_job_ids,
     start_run,
 )
 from app.services.replies import ReplyTracker
@@ -50,14 +47,16 @@ async def automation_status(
     user_settings = await UserSettingsRepository(db, owner_id=user.id).get_or_create()
     reason = await not_ready_reason(db, request.app.state.settings, user.id)
     task = await last_run(db, user.id)
+    ready, below = await job_readiness(db, user.id)
     return AutomationStatus(
-        keywords=list(user_settings.automation_keywords),
         ready=reason is None,
         not_ready_reason=reason,
-        saved_ready=len(await saved_job_ids(db, user.id)),
-        fetch_allowed=await fetch_allowed(db),
-        fetch_problem=fetch_problem(user_settings),
+        saved_ready=len(ready),
+        below_minimum=len(below),
+        min_score=user_settings.automation_min_score,
         max_jobs=user_settings.automation_max_jobs,
+        scheduled=user_settings.automation_enabled,
+        hour=user_settings.automation_hour,
         last_run=AutomationRun(
             task_id=task.id,
             status=task.status.value,
@@ -76,14 +75,11 @@ async def automation_status(
     "/automation/run",
     response_model=TaskCreated,
     status_code=status.HTTP_202_ACCEPTED,
-    summary="Automate saved jobs, or fetch new LinkedIn posts first (admin-enabled)",
+    summary="Prepare applications for jobs with an approved contact (apply pipeline)",
 )
-async def run_now(
-    request: Request, db: DbSession, user: ApprovedUser, body: AutomationRunRequest | None = None
-) -> TaskCreated:
+async def run_now(request: Request, db: DbSession, user: ApprovedUser) -> TaskCreated:
     state = request.app.state
-    mode = body.mode if body else "saved"
-    task = await start_run(db, state.settings, user.id, state.dispatcher, mode)
+    task = await start_run(db, state.settings, user.id, state.dispatcher)
     return TaskCreated(task_id=task.id)
 
 
@@ -103,10 +99,7 @@ QUOTA_FIELDS = (
 
 
 def _platform(row: AppSettings) -> PlatformSettings:
-    return PlatformSettings(
-        automation_fetch_enabled=row.automation_fetch_enabled,
-        **{name: getattr(row, name) for name in QUOTA_FIELDS},
-    )
+    return PlatformSettings(**{name: getattr(row, name) for name in QUOTA_FIELDS})
 
 
 @router.get("/admin/platform", response_model=PlatformSettings, summary="Platform switches (admin)")
@@ -135,10 +128,6 @@ async def update_platform(
             )
         )
 
-    enabled = body.automation_fetch_enabled
-    if enabled is not None and row.automation_fetch_enabled != enabled:
-        row.automation_fetch_enabled = enabled
-        audit("platform.automation_fetch", {"enabled": enabled})
     quotas = {
         name: value
         for name in QUOTA_FIELDS
@@ -148,7 +137,7 @@ async def update_platform(
         for name, value in quotas.items():
             setattr(row, name, value)
         audit("platform.quotas", quotas)
-    if enabled is not None or quotas:
+    if quotas:
         row.updated_by_id = admin.id
     await db.commit()
     return _platform(row)

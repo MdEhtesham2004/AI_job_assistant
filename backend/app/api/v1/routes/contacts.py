@@ -3,11 +3,12 @@ from datetime import UTC, datetime
 from typing import Annotated
 
 from fastapi import APIRouter, Query, Request, Response, status
+from sqlalchemy import func, select
 
 from app.api.deps import ApprovedUser, DbSession
-from app.models.enums import ContactApproval, ContactSource
+from app.models.enums import ContactApproval, ContactSource, EmailDirection
 from app.models.jobs import Job
-from app.models.outreach import Contact
+from app.models.outreach import Contact, Email
 from app.repositories.outreach import ContactFilters
 from app.schemas.common import Page
 from app.schemas.outreach import (
@@ -68,8 +69,25 @@ async def list_contacts(
         page=page,
         page_size=page_size,
     )
+    # Already emailed? By address (citext), so a re-added contact still shows it.
+    rows = await db.execute(
+        select(Email.to_address, func.max(Email.sent_at))
+        .where(
+            Email.user_id == user.id,
+            Email.direction == EmailDirection.OUTBOUND,
+            Email.sent_at.is_not(None),
+            Email.to_address.in_([v.contact.email for v in views]),
+        )
+        .group_by(Email.to_address)
+    )
+    emailed = {address.lower(): sent for address, sent in rows.all()}
     return Page(
-        items=[to_read(v.contact, v.job, v.blocked) for v in views],
+        items=[
+            to_read(v.contact, v.job, v.blocked).model_copy(
+                update={"last_emailed_at": emailed.get(v.contact.email.lower())}
+            )
+            for v in views
+        ],
         total=total,
         page=page,
         page_size=page_size,

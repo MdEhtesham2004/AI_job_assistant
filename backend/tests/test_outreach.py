@@ -590,6 +590,9 @@ def test_draft_approve_send_once_and_mark_applied(
     ]
     summary = client.get(f"{API}/outbox/summary", headers=user).json()
     assert summary["sent_today"] == 1 and summary["counts"]["sent"] == 1
+    # Contacts list marks the address as already emailed.
+    listed = client.get(f"{API}/contacts", headers=user).json()["items"]
+    assert [c["last_emailed_at"] is not None for c in listed if c["id"] == contact["id"]] == [True]
 
 
 @respx.mock
