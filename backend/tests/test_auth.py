@@ -42,6 +42,18 @@ def test_register_creates_pending_account_and_session(client: TestClient) -> Non
     assert f"{COOKIE}=" in cookie
     assert "httponly" in cookie
     assert "samesite=strict" in cookie
+
+
+def test_cross_site_cookie_when_frontend_is_on_another_site(
+    app: FastAPI, client: TestClient, settings: Settings
+) -> None:
+    """COOKIE_SAMESITE=none (Vercel frontend + ngrok API): the refresh cookie must be
+    SameSite=None and Secure, or the browser never sends it back."""
+    app.state.settings = settings.model_copy(update={"cookie_samesite": "none"})
+
+    cookie = register(client).headers["set-cookie"].lower()
+
+    assert "samesite=none" in cookie and "secure" in cookie
     assert "path=/api/v1/auth" in cookie
 
 

@@ -39,6 +39,12 @@ def settings(tmp_path_factory: pytest.TempPathFactory) -> Settings:
         test_database_url=base.test_database_url,
         secret_key=TEST_SECRET_KEY,
         cookie_secure=False,  # TestClient talks plain http
+        # Never the deployment values from backend/.env (e.g. Vercel + ngrok testing).
+        cookie_samesite="strict",
+        cors_origins=["http://localhost:5173"],
+        frontend_url="http://localhost:5173",
+        public_api_url="http://localhost:8000",
+        google_redirect_uri="",  # → built from public_api_url
         # Phase 6: no real broker, storage in a temp folder, fake external services.
         celery_enabled=False,
         storage_local_path=str(tmp_path_factory.mktemp("storage")),

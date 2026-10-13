@@ -39,6 +39,9 @@ class Settings(BaseSettings):
     refresh_cookie_name: str = "refresh_token"
     # None → secure cookies everywhere except development.
     cookie_secure: bool | None = None
+    # "none" when the frontend is on another site than the API (e.g. Vercel + ngrok);
+    # the refresh cookie is then sent cross-site and is always Secure.
+    cookie_samesite: Literal["strict", "lax", "none"] = "strict"
 
     # --- Infrastructure (Phase 6) ---
     redis_url: str = "redis://localhost:6379/0"
@@ -105,7 +108,10 @@ class Settings(BaseSettings):
         repr=False,
         validation_alias=AliasChoices("GOOGLE_CLIENT_SECRET", "CLIENT_SECRET"),
     )
-    google_redirect_uri: str = "http://localhost:8000/api/v1/integrations/gmail/callback"
+    # Public address of this API (e.g. the ngrok tunnel); the Gmail callback is built from it
+    # unless GOOGLE_REDIRECT_URI is set explicitly.
+    public_api_url: str = "http://localhost:8000"
+    google_redirect_uri: str = ""
     # Where the browser goes after the Google consent screen.
     frontend_url: str = "http://localhost:5173"
     # Fernet key (urlsafe base64, 32 bytes) for OAuth tokens at rest.
@@ -205,6 +211,8 @@ class Settings(BaseSettings):
 
     @property
     def refresh_cookie_secure(self) -> bool:
+        if self.cookie_samesite == "none":
+            return True  # browsers reject SameSite=None without Secure
         return (
             self.cookie_secure if self.cookie_secure is not None else self.app_env != "development"
         )
@@ -213,6 +221,10 @@ class Settings(BaseSettings):
     def _require_secret_key(self) -> "Settings":
         if len(self.secret_key) < 32:
             raise ValueError("SECRET_KEY must be set and at least 32 characters long.")
+        if not self.google_redirect_uri:
+            self.google_redirect_uri = (
+                f"{self.public_api_url.rstrip('/')}{self.api_prefix}/integrations/gmail/callback"
+            )
         return self
 
 

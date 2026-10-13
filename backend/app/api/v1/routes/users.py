@@ -92,5 +92,5 @@ async def delete_me(
         path=f"{settings.api_prefix}/auth",
         httponly=True,
         secure=settings.refresh_cookie_secure,
-        samesite="strict",
+        samesite=settings.cookie_samesite,
     )
