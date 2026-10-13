@@ -1,4 +1,4 @@
-import { BriefcaseBusiness, Menu, Moon, Sun, X } from 'lucide-react'
+import { Menu, Moon, Sun, X } from 'lucide-react'
 import { useState } from 'react'
 import { NavLink, Outlet, useLocation } from 'react-router'
 
@@ -30,13 +30,13 @@ function SidebarNav({ onNavigate }) {
     also.some((path) => pathname === path || pathname.startsWith(`${path}/`))
 
   return (
-    <nav className="flex flex-col gap-4 p-3" aria-label="Main">
+    <nav className="flex flex-col gap-6 px-3 py-4" aria-label="Main">
       {navigation
         .filter((section) => !section.adminOnly || isAdmin)
         .map((section, index) => (
-          <div key={section.title ?? index} className="flex flex-col gap-1">
+          <div key={section.title ?? index} className="flex flex-col gap-0.5">
             {section.title && (
-              <p className="px-3 pb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              <p className="px-3 pb-1.5 text-xs font-semibold text-muted-foreground">
                 {section.title}
               </p>
             )}
@@ -50,18 +50,20 @@ function SidebarNav({ onNavigate }) {
                   onClick={onNavigate}
                   className={({ isActive }) =>
                     cn(
-                      'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors',
+                      // Active page: an ink bar on the left edge, like a tab in a ledger.
+                      'relative flex items-center gap-3 rounded-md px-3 py-[0.45rem] text-[0.9rem] font-medium transition-colors',
+                      'before:absolute before:inset-y-1.5 before:left-0 before:w-[3px] before:rounded-full',
                       isActive || onAlso(also)
-                        ? 'bg-primary/10 text-primary'
-                        : 'text-muted-foreground hover:bg-accent hover:text-foreground',
+                        ? 'bg-card text-foreground before:bg-primary'
+                        : 'text-muted-foreground hover:bg-card/60 hover:text-foreground',
                     )
                   }
                 >
-                  <Icon className="size-4" aria-hidden="true" />
+                  <Icon className="size-4 opacity-80" aria-hidden="true" />
                   <span className="flex-1">{label}</span>
                   {badge && badges[badge] > 0 && (
                     <span
-                      className="rounded-full bg-warning/20 px-2 text-xs font-semibold text-warning"
+                      className="tabular rounded-sm bg-warning/15 px-1.5 text-xs font-semibold text-warning"
                       aria-label={`${badges[badge]} pending`}
                     >
                       {badges[badge]}
@@ -77,9 +79,10 @@ function SidebarNav({ onNavigate }) {
 
 function Brand() {
   return (
-    <div className="flex h-14 items-center gap-2 border-b px-5 font-semibold">
-      <BriefcaseBusiness className="size-5 text-primary" aria-hidden="true" />
-      AI Job Assistant
+    <div className="flex h-16 items-center px-6">
+      <span className="text-[1.15rem] font-extrabold tracking-tight">
+        FindMy<span className="text-primary">Jobs</span>
+      </span>
     </div>
   )
 }
@@ -91,16 +94,18 @@ export function AppLayout() {
   return (
     <div className="flex min-h-screen">
       {/* Desktop sidebar */}
-      <aside className="hidden w-60 shrink-0 border-r bg-sidebar md:block">
-        <Brand />
-        <SidebarNav />
-      </aside>
+      <div className="hidden w-60 shrink-0 bg-sidebar md:block">
+        <aside className="sticky top-0 h-screen overflow-y-auto">
+          <Brand />
+          <SidebarNav />
+        </aside>
+      </div>
 
       {/* Mobile sidebar */}
       {mobileOpen && (
         <div className="fixed inset-0 z-40 md:hidden">
           <div className="absolute inset-0 bg-black/40" onClick={() => setMobileOpen(false)} />
-          <aside className="absolute inset-y-0 left-0 w-64 border-r bg-sidebar">
+          <aside className="absolute inset-y-0 left-0 w-64 overflow-y-auto bg-sidebar shadow-xl">
             <Brand />
             <SidebarNav onNavigate={() => setMobileOpen(false)} />
           </aside>
@@ -108,7 +113,7 @@ export function AppLayout() {
       )}
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="flex h-14 items-center justify-between border-b bg-card px-4 md:px-6">
+        <header className="flex h-16 items-center justify-between px-4 md:px-8">
           <Button
             variant="ghost"
             size="icon"
@@ -132,8 +137,10 @@ export function AppLayout() {
           </div>
         </header>
 
-        <main className="flex-1 p-4 md:p-8">
-          <Outlet />
+        <main className="flex-1 px-4 pb-12 pt-2 md:px-10">
+          <div className="mx-auto w-full max-w-6xl">
+            <Outlet />
+          </div>
         </main>
       </div>
     </div>

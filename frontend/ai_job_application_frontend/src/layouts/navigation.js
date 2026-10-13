@@ -1,6 +1,7 @@
 import {
   Activity,
   BarChart3,
+  Bot,
   Briefcase,
   ClipboardList,
   FileText,
@@ -27,6 +28,7 @@ export const navigation = [
       { to: '/applications', label: 'Applications', icon: ClipboardList },
       { to: '/interviews', label: 'Prepare', icon: GraduationCap, also: ['/skills'] },
       { to: '/contacts', label: 'Outreach', icon: Send, also: ['/outbox'], when: 'outreach' },
+      { to: '/automations', label: 'Automations', icon: Bot },
       { to: '/resumes', label: 'Resume', icon: FileText },
       { to: '/settings', label: 'Settings', icon: Settings, also: ['/profile'] },
     ],

@@ -7,10 +7,7 @@ import { SECTIONS } from './sections'
 /** Tabs for the pages of one sidebar area (Phase 18); the pages themselves are unchanged. */
 export function SectionTabs({ section }) {
   return (
-    <nav
-      aria-label="Section"
-      className="mb-6 inline-flex flex-wrap gap-1 rounded-lg border bg-muted/40 p-1"
-    >
+    <nav aria-label="Section" className="mb-7 flex flex-wrap gap-x-6 border-b">
       {SECTIONS[section].map((tab) => (
         <NavLink
           key={tab.to}
@@ -18,10 +15,10 @@ export function SectionTabs({ section }) {
           end={tab.end}
           className={({ isActive }) =>
             cn(
-              'rounded-md px-3 py-1.5 text-sm font-medium transition-colors',
+              '-mb-px border-b-2 pb-2.5 pt-1 text-sm font-semibold transition-colors',
               isActive
-                ? 'bg-card text-foreground shadow-sm'
-                : 'text-muted-foreground hover:text-foreground',
+                ? 'border-primary text-foreground'
+                : 'border-transparent text-muted-foreground hover:text-foreground',
             )
           }
         >

@@ -29,6 +29,13 @@ import { useFetchDescription, useJob, useUpdateJob } from '@/features/jobs/hooks
 import { ProgressBar } from '@/features/tasks/components/TaskStatusBadge'
 import { formatDateTime, formatRelative } from '@/lib/format'
 
+const JOB_SOURCE_LABELS = {
+  jsearch: 'Job search',
+  linkedin_post: 'LinkedIn post',
+  manual: 'Added by you',
+  legacy_sheet: 'Old system import',
+}
+
 export default function JobDetailPage() {
   const { jobId } = useParams()
   const query = useJob(jobId)
@@ -81,7 +88,7 @@ function JobDetail({ job }) {
                 href={job.apply_url}
                 target="_blank"
                 rel="noreferrer"
-                className="inline-flex h-9 items-center gap-2 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground hover:bg-primary/90 [&_svg]:size-4"
+                className="inline-flex h-9 items-center gap-2 rounded-md border border-foreground/15 bg-card px-4 text-sm font-semibold hover:border-primary/40 hover:bg-accent [&_svg]:size-4"
               >
                 <ExternalLink aria-hidden="true" />
                 {/* A LinkedIn hiring post: you apply by email (Application card), not there. */}
@@ -161,7 +168,7 @@ function JobDetail({ job }) {
             <CardContent>
               <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 text-sm">
                 <dt className="text-muted-foreground">Source</dt>
-                <dd>{job.source === 'jsearch' ? 'JSearch' : job.source}</dd>
+                <dd>{JOB_SOURCE_LABELS[job.source] ?? job.source}</dd>
                 <dt className="text-muted-foreground">Found by you</dt>
                 <dd>{formatDateTime(job.first_found_at)}</dd>
                 <dt className="text-muted-foreground">Last seen</dt>

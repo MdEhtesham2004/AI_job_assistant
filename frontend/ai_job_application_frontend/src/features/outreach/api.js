@@ -46,8 +46,8 @@ export const emailsApi = {
 
 export const automationApi = {
   status: () => api.get('/automation'),
-  /** mode: 'saved' (jobs you already have) | 'fetch' (search LinkedIn first) */
-  run: (mode) => api.post('/automation/run', { mode }),
+  /** Apply pipeline: prepare applications for jobs with an approved contact. */
+  run: () => api.post('/automation/run'),
   platform: () => api.get('/admin/platform'),
   updatePlatform: (changes) => api.patch('/admin/platform', changes),
 }

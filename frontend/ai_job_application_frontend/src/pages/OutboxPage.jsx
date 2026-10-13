@@ -5,7 +5,6 @@ import { PageHeader } from '@/components/common/PageHeader'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { OUTBOX_TABS } from '@/features/outreach/api'
-import { AutomationCard } from '@/features/outreach/components/AutomationCard'
 import { EmailEditor } from '@/features/outreach/components/EmailEditor'
 import { useApproveBatch, useOutbox, useOutboxSummary } from '@/features/outreach/hooks'
 import { formatDateTime } from '@/lib/format'
@@ -27,8 +26,12 @@ export default function OutboxPage() {
       <PageHeader
         title="Outbox"
         description="Application emails and follow-ups: review, approve, and follow scheduled and sent mail."
+        actions={
+          <Link to="/automations/pipeline" className="text-sm text-primary hover:underline">
+            Run the apply pipeline →
+          </Link>
+        }
       />
-      <AutomationCard />
 
       {summary && (
         <Card className="mb-4">
@@ -56,7 +59,7 @@ export default function OutboxPage() {
       )}
 
       <div className="mb-4 flex flex-wrap items-center gap-2">
-        <div className="flex rounded-md border" role="tablist" aria-label="Outbox">
+        <div className="flex flex-wrap gap-x-5 border-b" role="tablist" aria-label="Outbox">
           {OUTBOX_TABS.map((t) => {
             const count = summary
               ? t.statuses.reduce((sum, s) => sum + (summary.counts[s] ?? 0), 0)
@@ -72,8 +75,10 @@ export default function OutboxPage() {
                   setSelected([])
                 }}
                 className={cn(
-                  'px-3 py-1.5 text-sm',
-                  tab === t.key ? 'bg-primary text-primary-foreground' : 'hover:bg-accent',
+                  '-mb-px border-b-2 pb-2 pt-1 text-sm font-semibold',
+                  tab === t.key
+                    ? 'border-primary text-foreground'
+                    : 'border-transparent text-muted-foreground hover:text-foreground',
                 )}
               >
                 {t.label}

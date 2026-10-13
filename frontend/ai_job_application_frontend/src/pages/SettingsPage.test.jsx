@@ -4,6 +4,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { jsonResponse, makeAuth, makeUser, mockApi, renderWithProviders } from '@/test/utils'
 
+import AutomationPipelinePage from './AutomationPipelinePage'
+import DigestPage from './DigestPage'
 import SettingsPage from './SettingsPage'
 
 const SETTINGS = {
@@ -25,6 +27,7 @@ const SETTINGS = {
   automation_posted_limit: 'week',
   automation_tailor: true,
   automation_cover_letter: true,
+  automation_hour: 10,
   monthly_ai_budget_usd: '5.00',
   digest_enabled: true,
   digest_hour: 8,
@@ -61,55 +64,49 @@ describe('SettingsPage', () => {
     expect(JSON.parse(patch[1].body)).toEqual({ daily_send_cap: 10 })
   })
 
-  it('sends automation keywords as a list', async () => {
+  it('Phase 20: automation settings are in Settings; Automations tabs show the automations', async () => {
+    mockApi({ 'GET /users/me/settings': SETTINGS })
+    const { unmount } = renderWithProviders(<SettingsPage />)
+    expect(await screen.findByText('Automations › Apply pipeline')).toBeInTheDocument()
+    expect(screen.getByText('Automations › Daily digest')).toBeInTheDocument()
+    unmount()
+
+    const pipeline = renderWithProviders(<AutomationPipelinePage />)
+    expect(screen.getByRole('link', { name: /Pipeline settings/ })).toHaveAttribute(
+      'href',
+      '/settings',
+    )
+    expect(screen.queryByRole('button', { name: 'Save settings' })).not.toBeInTheDocument()
+    pipeline.unmount()
+
+    renderWithProviders(<DigestPage />)
+    expect(screen.getByText(/Today.s matches/)).toBeInTheDocument()
+  })
+
+  it('switches on the daily apply pipeline at a chosen hour', async () => {
     const fetchMock = mockApi({
-      'GET /users/me/settings': SETTINGS,
+      'GET /users/me/settings': { ...SETTINGS, automation_hour: 10 },
       'PATCH /users/me/settings': (_url, init) =>
         jsonResponse({ ...SETTINGS, ...JSON.parse(init.body) }),
     })
     renderWithProviders(<SettingsPage />)
 
-    const label = 'Keywords for fetching new jobs (comma-separated, up to 5)'
-    await screen.findByLabelText(label)
-    await setValue(label, 'React Native, Flutter ,')
-    await userEvent.selectOptions(screen.getByLabelText('Fetch posts from the last'), 'month')
+    await userEvent.click(await screen.findByLabelText(/Prepare applications by itself every day/))
+    await userEvent.selectOptions(
+      screen.getByLabelText('Time (your time zone, from Profile)', {
+        selector: '#automation-hour',
+      }),
+      '11',
+    )
     await userEvent.click(screen.getByRole('button', { name: 'Save settings' }))
 
-    const patch = await vi.waitFor(() => {
-      const call = fetchMock.mock.calls.find(([, init]) => init?.method === 'PATCH')
-      if (!call) throw new Error('not yet')
-      return call
-    })
-    expect(JSON.parse(patch[1].body)).toEqual({
-      automation_keywords: ['React Native', 'Flutter'],
-      automation_posted_limit: 'month',
-    })
-  })
-
-  it('lets an admin unlock "Fetch new jobs & automate"', async () => {
-    const fetchMock = mockApi({
-      'GET /users/me/settings': SETTINGS,
-      'GET /integrations/gmail': { configured: true, connected: false },
-      'GET /admin/platform': { automation_fetch_enabled: false },
-      'PATCH /admin/platform': (_url, init) => jsonResponse(JSON.parse(init.body)),
-    })
-    renderWithProviders(<SettingsPage />, { auth: makeAuth({ user: makeUser({ role: 'admin' }) }) })
-
-    await userEvent.click(
-      await screen.findByRole('checkbox', { name: /Allow “Fetch new jobs & automate”/ }),
-    )
-
     await vi.waitFor(() => {
-      const patch = fetchMock.mock.calls.find(
-        ([url, init]) => String(url).endsWith('/admin/platform') && init?.method === 'PATCH',
-      )
-      expect(JSON.parse(patch[1].body)).toEqual({ automation_fetch_enabled: true })
+      const call = fetchMock.mock.calls.find(([, init]) => init?.method === 'PATCH')
+      expect(JSON.parse(call[1].body)).toEqual({ automation_enabled: true, automation_hour: 11 })
     })
   })
-
   it('lets an admin change the per-user search limits', async () => {
     const PLATFORM = {
-      automation_fetch_enabled: false,
       jsearch_requests_per_month: 60,
       apify_posts_per_month: 300,
       apify_max_posts_per_fetch: 25,

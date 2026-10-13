@@ -100,7 +100,7 @@ export function DocumentsCard({ jobId, canGenerate }) {
             )}
             <Button
               size="sm"
-              variant={data?.tailored ? 'outline' : 'default'}
+              variant="outline"
               onClick={() => tailor.start()}
               disabled={tailor.running || noResume || !canGenerate}
             >
@@ -150,7 +150,7 @@ export function DocumentsCard({ jobId, canGenerate }) {
             )}
             <Button
               size="sm"
-              variant={data?.cover_letter ? 'outline' : 'default'}
+              variant="outline"
               onClick={() => letter.start()}
               disabled={letter.running || noResume || !canGenerate}
             >

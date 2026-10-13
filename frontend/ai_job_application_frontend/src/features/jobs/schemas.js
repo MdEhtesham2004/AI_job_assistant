@@ -28,7 +28,12 @@ export const savedSearchSchema = z.object({
   custom_cron: z.string().trim(),
   kind: z.enum(['jobs', 'linkedin']),
   posted_limit: z.enum(['24h', 'week', 'month']),
-  max_posts: z.coerce.number().int().min(5, 'At least 5 posts.').max(200, 'At most 200 posts.'),
+  max_posts: z.coerce
+    .number()
+    .int()
+    .min(5, 'At least 5 posts.')
+    .max(200, 'At most 200 posts.')
+    .multipleOf(5, 'Choose a multiple of 5.'),
 })
 
 /** Form values → API body (empty strings become null). */

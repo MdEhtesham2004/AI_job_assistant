@@ -2,11 +2,12 @@ import { Badge } from '@/components/ui/badge'
 
 import { QUALITY_LABELS, STATE_LABELS } from '../api'
 
-const QUALITY_VARIANT = { complete: 'success', partial: 'warning', missing: 'destructive' }
+// Phase 21: green is kept for match scores; a full description is the normal case.
+const QUALITY_VARIANT = { complete: 'outline', partial: 'warning', missing: 'destructive' }
 const STATE_VARIANT = {
   new: 'default',
-  saved: 'success',
-  analyzed: 'success',
+  saved: 'default',
+  analyzed: 'default',
   skipped: 'outline',
   archived: 'outline',
 }

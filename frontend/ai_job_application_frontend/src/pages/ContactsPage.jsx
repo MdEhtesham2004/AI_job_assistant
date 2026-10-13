@@ -94,7 +94,7 @@ export default function ContactsPage() {
 
         <section aria-label="Contacts" className="space-y-3">
           <div className="flex flex-wrap items-center gap-2">
-            <div className="flex rounded-md border" role="tablist" aria-label="Approval">
+            <div className="flex flex-wrap gap-x-5 border-b" role="tablist" aria-label="Approval">
               {TABS.map((tab) => (
                 <button
                   key={tab.key || 'all'}
@@ -103,8 +103,10 @@ export default function ContactsPage() {
                   aria-selected={approval === tab.key}
                   onClick={() => setParams(tab.key ? { approval: tab.key } : { approval: '' })}
                   className={cn(
-                    'px-3 py-1.5 text-sm',
-                    approval === tab.key ? 'bg-primary text-primary-foreground' : 'hover:bg-accent',
+                    '-mb-px border-b-2 pb-2 pt-1 text-sm font-semibold',
+                    approval === tab.key
+                      ? 'border-primary text-foreground'
+                      : 'border-transparent text-muted-foreground hover:text-foreground',
                   )}
                 >
                   {tab.label}
@@ -302,7 +304,12 @@ function ContactRow({ contact }) {
   const setApproval = (approval) => update.mutate({ id: contact.id, changes: { approval } })
 
   return (
-    <li className="rounded-lg border bg-card p-4 text-sm">
+    <li
+      className={cn(
+        'rounded-lg border bg-card p-4 text-sm',
+        contact.last_emailed_at && 'border-success/50 bg-success/5',
+      )}
+    >
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0 space-y-1">
           <p className="flex flex-wrap items-center gap-2">
@@ -310,6 +317,9 @@ function ContactRow({ contact }) {
             <ApprovalBadge value={contact.approval} />
             <VerificationBadge value={contact.verification} />
             {contact.blocked && <Badge variant="destructive">Do not contact</Badge>}
+            {contact.last_emailed_at && (
+              <Badge variant="success">Emailed {formatRelative(contact.last_emailed_at)}</Badge>
+            )}
           </p>
           <p className="text-muted-foreground">
             {[contact.name, contact.role_title].filter(Boolean).join(' · ') || 'No name'}
