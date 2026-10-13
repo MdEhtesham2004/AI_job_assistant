@@ -219,11 +219,17 @@ async def draft_inputs(
     )
     if contact is None:
         raise ConflictError("Choose who to send it to first.", code="CONTACT_REQUIRED")
-    letter = (
-        await CoverLetterRepository(session, owner_id=user_id).get(application.cover_letter_id)
-        if application.cover_letter_id
-        else None
-    )
+    letters = CoverLetterRepository(session, owner_id=user_id)
+    if application.cover_letter_id:
+        letter = await letters.get(application.cover_letter_id)
+    else:
+        # Like the resume, default to this job's latest cover letter (it was generated but
+        # never chosen on the application, so emails went out without it).
+        letter = await letters.latest_for_job(job.id)
+        if letter is not None and letter.file_key:
+            application.cover_letter_id = letter.id
+        else:
+            letter = None
     return DraftInputs(application, job, version, letter, contact)
 
 
