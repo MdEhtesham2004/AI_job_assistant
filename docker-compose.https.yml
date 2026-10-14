@@ -1,0 +1,31 @@
+# HTTPS for the production stack (Phase 14). Use together with docker-compose.prod.yml:
+#
+#   docker compose -f docker-compose.prod.yml -f docker-compose.https.yml --env-file .env.prod up -d
+#
+# Needs SERVER_NAME in .env.prod and a Let's Encrypt certificate in /etc/letsencrypt
+# (see DEPLOYMENT.md › HTTPS).
+
+services:
+  web:
+    environment:
+      BACKEND_URL: http://api:8000
+      SERVER_NAME: ${SERVER_NAME:?set SERVER_NAME in .env.prod}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./frontend/ai_job_application_frontend/nginx/https.conf.template:/etc/nginx/templates/default.conf.template:ro
+      - /etc/letsencrypt:/etc/letsencrypt:ro
+      - certbot_www:/var/www/certbot:ro
+
+  # Renews the certificate (twice a day; certbot only acts when it is due).
+  certbot:
+    image: certbot/certbot:latest
+    entrypoint: ["/bin/sh", "-c", "trap exit TERM; while :; do certbot renew --webroot -w /var/www/certbot --quiet; sleep 12h; done"]
+    volumes:
+      - /etc/letsencrypt:/etc/letsencrypt
+      - certbot_www:/var/www/certbot
+    restart: unless-stopped
+
+volumes:
+  certbot_www:

@@ -1,0 +1,176 @@
+from decimal import Decimal
+from typing import Annotated, Literal
+from zoneinfo import available_timezones
+
+from pydantic import (
+    AnyHttpUrl,
+    BaseModel,
+    ConfigDict,
+    Field,
+    StringConstraints,
+    field_validator,
+    model_validator,
+)
+
+from app.schemas.auth import FullName
+
+_TIMEZONES = frozenset(available_timezones())
+
+ShortText = Annotated[str, StringConstraints(strip_whitespace=True, max_length=120)]
+Phone = Annotated[str, StringConstraints(strip_whitespace=True, max_length=30)]
+
+
+class MeUpdate(BaseModel):
+    full_name: FullName
+
+
+# ---------- profile ----------
+
+
+class ProfileLinks(BaseModel):
+    linkedin: AnyHttpUrl | None = None
+    github: AnyHttpUrl | None = None
+    portfolio: AnyHttpUrl | None = None
+
+
+class ProfileRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    phone: str | None
+    location: str | None
+    headline: str | None
+    links: dict[str, str]
+    timezone: str
+    # Phase 16: used in screening answers (never guessed by the AI).
+    notice_period: str | None = None
+    expected_salary: str | None = None
+
+
+ShortFact = Annotated[str, StringConstraints(strip_whitespace=True, max_length=100)]
+
+
+class ProfileUpdate(BaseModel):
+    phone: Phone | None = None
+    location: ShortText | None = None
+    headline: Annotated[str, StringConstraints(strip_whitespace=True, max_length=220)] | None = None
+    links: ProfileLinks = Field(default_factory=ProfileLinks)
+    timezone: str = "Asia/Kolkata"
+    notice_period: ShortFact | None = None
+    expected_salary: ShortFact | None = None
+
+    @field_validator("timezone")
+    @classmethod
+    def _known_timezone(cls, value: str) -> str:
+        if value not in _TIMEZONES:
+            raise ValueError("Unknown time zone.")
+        return value
+
+    @field_validator("phone", "location", "headline", "notice_period", "expected_salary")
+    @classmethod
+    def _blank_to_none(cls, value: str | None) -> str | None:
+        return value or None
+
+    def links_dict(self) -> dict[str, str]:
+        return {key: str(url) for key, url in self.links.model_dump().items() if url is not None}
+
+
+# ---------- settings ----------
+
+Percent = Annotated[int, Field(ge=0, le=100)]
+WEIGHT_KEYS = ("skills", "experience", "technology", "education", "location")
+
+
+class ScoreWeights(BaseModel):
+    skills: Percent
+    experience: Percent
+    technology: Percent
+    education: Percent
+    location: Percent
+
+    @model_validator(mode="after")
+    def _sum_to_100(self) -> "ScoreWeights":
+        if sum(getattr(self, key) for key in WEIGHT_KEYS) != 100:
+            raise ValueError("Score weights must add up to 100.")
+        return self
+
+
+class SettingsRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    threshold_use_master: int
+    threshold_tailor: int
+    score_weights: ScoreWeights
+    auto_analyze_new_jobs: bool
+    daily_send_cap: int
+    send_interval_seconds: int
+    recipient_cooldown_days: int
+    follow_up_days: int
+    no_response_days: int
+    linkedin_source_enabled: bool
+    automation_enabled: bool
+    automation_min_score: int
+    automation_keywords: list[str]
+    automation_interval_hours: int
+    automation_max_jobs: int
+    automation_posted_limit: str
+    automation_tailor: bool
+    automation_cover_letter: bool
+    automation_hour: int = 10
+    monthly_ai_budget_usd: Decimal
+    digest_enabled: bool
+    digest_hour: int
+    digest_min_score: int
+    digest_email: bool
+    # Phase 19: set by an admin (read-only here; not in SettingsUpdate).
+    linkedin_schedule_allowed: bool = False
+
+
+class SettingsUpdate(BaseModel):
+    """Partial update: only the fields sent are changed."""
+
+    threshold_use_master: Percent | None = None
+    threshold_tailor: Percent | None = None
+    score_weights: ScoreWeights | None = None
+    auto_analyze_new_jobs: bool | None = None
+    daily_send_cap: Annotated[int, Field(ge=0, le=500)] | None = None
+    send_interval_seconds: Annotated[int, Field(ge=30, le=3600)] | None = None
+    recipient_cooldown_days: Annotated[int, Field(ge=0, le=365)] | None = None
+    follow_up_days: Annotated[int, Field(ge=0, le=60)] | None = None
+    no_response_days: Annotated[int, Field(ge=1, le=180)] | None = None
+    linkedin_source_enabled: bool | None = None
+    automation_enabled: bool | None = None
+    automation_min_score: Percent | None = None
+    automation_keywords: (
+        Annotated[list[Annotated[str, Field(min_length=2, max_length=60)]], Field(max_length=5)]
+        | None
+    ) = None
+    automation_interval_hours: Annotated[int, Field(ge=6, le=168)] | None = None
+    automation_max_jobs: Annotated[int, Field(ge=1, le=20)] | None = None
+    automation_posted_limit: Literal["24h", "week", "month"] | None = None
+    automation_tailor: bool | None = None
+    automation_cover_letter: bool | None = None
+    automation_hour: Annotated[int, Field(ge=0, le=23)] | None = None
+    monthly_ai_budget_usd: Annotated[Decimal, Field(ge=0, le=1000, decimal_places=2)] | None = None
+    digest_enabled: bool | None = None
+    digest_hour: Annotated[int, Field(ge=0, le=23)] | None = None
+    digest_min_score: Percent | None = None
+    digest_email: bool | None = None
+
+    @field_validator("automation_keywords")
+    @classmethod
+    def _clean_keywords(cls, value: list[str] | None) -> list[str] | None:
+        if value is None:
+            return None
+        seen: list[str] = []
+        for keyword in value:
+            clean = " ".join(keyword.replace('"', " ").split())
+            if clean and clean.lower() not in [s.lower() for s in seen]:
+                seen.append(clean)
+        return seen
+
+
+class DeleteAccount(BaseModel):
+    """Phase 14: both are required, so an account is never deleted by one click."""
+
+    password: Annotated[str, Field(min_length=1, max_length=200)]
+    confirm_email: Annotated[str, Field(min_length=3, max_length=254)]

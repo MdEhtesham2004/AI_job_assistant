@@ -1,0 +1,131 @@
+# Full local stack for development and admin review: the same services as production
+# (docker-compose.prod.yml), with dev defaults and debug ports on localhost only.
+#
+#   cp .env.example .env              # ports + database password (optional)
+#   docker compose up -d --build
+#
+# Web app: http://localhost:8081  ·  API docs: http://localhost:8081/api/v1/docs
+# API keys (OpenRouter, JSearch, Apify, Google) are read from backend/.env when it exists;
+# database, Redis, Gotenberg and storage settings below override what that file says.
+# First admin:  docker compose exec api python -m app.cli create-admin
+
+name: ai-job-platform
+
+# One backend image, built once (by `api`) and reused by migrate / worker / beat.
+x-backend: &backend
+  image: ai-job-platform-backend:dev
+  pull_policy: never
+  env_file:
+    - path: ./backend/.env
+      required: false
+  environment:
+    APP_ENV: ${APP_ENV:-development}
+    APP_VERSION: ${APP_VERSION:-0.1.0}
+    LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    LOG_JSON: "true"
+    DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-app}:${POSTGRES_PASSWORD:-app}@postgres:5432/${POSTGRES_DB:-jobs}
+    REDIS_URL: redis://redis:6379/0
+    GOTENBERG_URL: http://gotenberg:3000
+    CELERY_ENABLED: "true"
+    STORAGE_BACKEND: local
+    STORAGE_LOCAL_PATH: /app/storage
+    FRONTEND_URL: http://localhost:${WEB_PORT:-8081}
+    CORS_ORIGINS: '["http://localhost:${WEB_PORT:-8081}", "http://localhost:5173"]'
+  volumes:
+    - storage_data:/app/storage
+  restart: unless-stopped
+  depends_on:
+    postgres:
+      condition: service_healthy
+    redis:
+      condition: service_healthy
+
+services:
+  web:
+    image: ai-job-platform-web:dev
+    build:
+      context: ./frontend/ai_job_application_frontend
+    environment:
+      BACKEND_URL: http://api:8000
+    ports:
+      - "${WEB_PORT:-8081}:80"
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # One-shot: bring the database schema up to date, then exit (api waits for it).
+  migrate:
+    <<: *backend
+    command: ["alembic", "upgrade", "head"]
+    restart: "no"
+
+  api:
+    <<: *backend
+    build:
+      context: ./backend
+    pull_policy: build
+    command: ["uvicorn", "app.main:app", "--host=0.0.0.0", "--port=8000", "--proxy-headers",
+              "--forwarded-allow-ips=*"]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+
+  worker:
+    <<: *backend
+    command:
+      ["celery", "-A", "app.workers.celery_app", "worker", "-Q", "default,ai,pdf,email",
+       "--concurrency=${WORKER_CONCURRENCY:-1}", "-l", "info"]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  # Exactly one scheduler: scheduled emails, reply polling, saved searches.
+  beat:
+    <<: *backend
+    command:
+      ["celery", "-A", "app.workers.celery_app", "beat", "-l", "info",
+       "--schedule=/tmp/celerybeat-schedule"]
+    healthcheck:
+      disable: true
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-app}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-app}
+      POSTGRES_DB: ${POSTGRES_DB:-jobs}
+    ports:
+      - "127.0.0.1:${POSTGRES_PORT:-5433}:5432"  # for a database client; not 5432 (dev DB)
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-app} -d ${POSTGRES_DB:-jobs}"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "127.0.0.1:${REDIS_PORT:-6380}:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+
+  gotenberg:
+    image: gotenberg/gotenberg:8
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  storage_data:
